@@ -1,5 +1,6 @@
 export type SignRequest = {
   hash: string;
+  pin: string;
 };
 
 export type SignResponse = {
@@ -9,6 +10,8 @@ export type SignResponse = {
 export type FileSignResponse = {
   hash: string;
   signature: string;
+  fileName: string;
+  message: string;
 };
 
 export type VerifyRequest = {

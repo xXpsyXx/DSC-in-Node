@@ -1,0 +1,116 @@
+<div class="verify-signature-container">
+  <h1>Verify PDF Signature</h1>
+
+  <div class="upload-section">
+    <div class="file-input-wrapper">
+      <input
+        type="file"
+        accept=".pdf"
+        (change)="onFileSelected($event)"
+        id="file-input"
+        class="file-input"
+      />
+      <label for="file-input" class="file-label"> Choose PDF File </label>
+    </div>
+
+    <div *ngIf="selectedFile()" class="file-info">
+      <p><strong>Selected file:</strong> {{ selectedFile()?.name }}</p>
+      <p><strong>Size:</strong> {{ (selectedFile()?.size! / 1024).toFixed(2) }} KB</p>
+    </div>
+  </div>
+
+  <!-- Error Message -->
+  <div *ngIf="errorMessage()" class="error-alert"><strong>Error:</strong> {{ errorMessage() }}</div>
+
+  <!-- Verification Buttons -->
+  <div class="button-group">
+    <button
+      (click)="onVerifyClick()"
+      [disabled]="!selectedFile() || isLoading()"
+      class="btn btn-primary"
+    >
+      <span *ngIf="!isLoading()">Verify Signature</span>
+      <span *ngIf="isLoading()">Verifying...</span>
+    </button>
+
+    <button (click)="resetForm()" class="btn btn-secondary">Reset</button>
+  </div>
+
+  <!-- Verification Results -->
+  <div *ngIf="verifyResult()" class="results-section">
+    <h2>Verification Results</h2>
+
+    <!-- Status Badge -->
+    <div
+      [class.status-badge]="true"
+      [class.valid]="verifyResult()!.isValid"
+      [class.invalid]="!verifyResult()!.isValid"
+    >
+      <strong>Status:</strong>
+      <span *ngIf="verifyResult()!.isValid" class="status-valid">✓ VALID</span>
+      <span *ngIf="!verifyResult()!.isValid" class="status-invalid">✕ INVALID</span>
+    </div>
+
+    <!-- Message -->
+    <div class="message">
+      <p>{{ verifyResult()!.message }}</p>
+    </div>
+
+    <!-- File Information -->
+    <div class="info-section">
+      <h3>File Information</h3>
+      <div class="info-row">
+        <label>File Name:</label>
+        <span>{{ verifyResult()!.fileName }}</span>
+      </div>
+      <div class="info-row">
+        <label>File Hash:</label>
+        <span class="hash">{{ verifyResult()!.hash }}</span>
+      </div>
+    </div>
+
+    <!-- Signature Information -->
+    <div class="info-section">
+      <h3>Signature Details</h3>
+      <div class="info-row">
+        <label>Signer Name:</label>
+        <span>{{ verifyResult()!.signature.name }}</span>
+      </div>
+      <div class="info-row">
+        <label>Signature Reason:</label>
+        <span>{{ verifyResult()!.signature.reason }}</span>
+      </div>
+      <div class="info-row">
+        <label>Signed Date:</label>
+        <span>{{ verifyResult()!.signature.date }}</span>
+      </div>
+      <div class="info-row">
+        <label>Signature Size:</label>
+        <span>{{ verifyResult()!.signature.contentLength }} bytes</span>
+      </div>
+    </div>
+
+    <!-- Verification Details -->
+    <div class="info-section">
+      <h3>Verification Details</h3>
+      <div class="info-row">
+        <label>Verification Status:</label>
+        <span
+          [class.status-valid]="verifyResult()!.verification.status === 'valid'"
+          [class.status-invalid]="verifyResult()!.verification.status === 'invalid'"
+        >
+          {{ verifyResult()!.verification.status | uppercase }}
+        </span>
+      </div>
+      <div class="info-row">
+        <label>Verification Message:</label>
+        <span>{{ verifyResult()!.verification.message }}</span>
+      </div>
+    </div>
+
+    <!-- Clear Results Button -->
+    <div class="button-group">
+      <button (click)="clearResults()" class="btn btn-secondary">Clear Results</button>
+    </div>
+  </div>
+</div>
