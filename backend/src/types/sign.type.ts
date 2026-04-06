@@ -1,13 +1,18 @@
 export type SignRequest = {
-  data: string; // later: hash
+  hash: string;
 };
 
 export type SignResponse = {
   signature: string;
 };
 
+export type FileSignResponse = {
+  hash: string;
+  signature: string;
+};
+
 export type VerifyRequest = {
-  data: string;
+  hash: string;
   signature: string;
 };
 
