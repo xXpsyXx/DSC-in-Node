@@ -1,12 +1,18 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { DscModule } from '../modules/dsc/dsc.module';
-import { Pkcs11ConfigService } from './config/pkcs11.config';
+import { AuthModule } from './auth/auth.module';
+import { UserModule } from './user/user.module';
+import { pool } from './database';
 
 @Module({
-  imports: [DscModule],
+  imports: [AuthModule, UserModule],
   controllers: [AppController],
-  providers: [AppService, Pkcs11ConfigService],
+  providers: [AppService],
 })
-export class AppModule {}
+export class AppModule {
+  async onModuleInit() {
+    await pool.query('SELECT 1');
+    console.log('Database connected successfully');
+  }
+}
