@@ -5,3 +5,12 @@ export type SignRequest = {
 export type SignResponse = {
   signature: string;
 };
+
+export type VerifyRequest = {
+  data: string;
+  signature: string;
+};
+
+export type VerifyResponse = {
+  isValid: boolean;
+};

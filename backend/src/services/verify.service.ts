@@ -2,8 +2,8 @@ import forge from "node-forge";
 import fs from "fs";
 import path from "path";
 
-export class SignerService {
-  private privateKey: forge.pki.PrivateKey;
+export class VerifyService {
+  private publicKey: forge.pki.PublicKey;
 
   constructor() {
     const pfxPath = path.resolve(process.cwd(), "../certificate.pfx");
@@ -14,18 +14,20 @@ export class SignerService {
     const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, "12345678");
 
     const bags = p12.getBags({
-      bagType: forge.pki.oids.pkcs8ShroudedKeyBag,
+      bagType: forge.pki.oids.certificateBag,
     });
 
-    this.privateKey = bags[forge.pki.oids.pkcs8ShroudedKeyBag][0].key;
+    const cert = bags[forge.pki.oids.certificateBag][0].cert;
+
+    this.publicKey = cert.publicKey;
   }
 
-  sign(data: string): string {
+  verify(data: string, signatureBase64: string): boolean {
     const md = forge.md.sha256.create();
     md.update(data, "utf8");
 
-    const signature = this.privateKey.sign(md);
+    const signature = forge.util.decode64(signatureBase64);
 
-    return forge.util.encode64(signature);
+    return this.publicKey.verify(md.digest().bytes(), signature);
   }
 }
