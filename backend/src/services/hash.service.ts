@@ -14,6 +14,7 @@ export class HashService {
     return crypto.createHmac('sha256', secret).update(data).digest('hex');
   }
 
+
   static verifyServerHmac(
     secret: string,
     certificatePem: string,
@@ -31,3 +32,4 @@ export class HashService {
     );
   }
 }
+

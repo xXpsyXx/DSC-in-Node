@@ -71,7 +71,10 @@ const getHardwareErrorResponse = (
   }
 
   return null;
+
+  return null;
 };
+
 
 // Sign uploaded PDF and embed a detached signature metadata block.
 export const signHandler = async (req: Request, res: Response) => {
@@ -96,6 +99,9 @@ export const signHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'pin is required' });
     }
 
+    console.log(
+      `[signHandler] Processing file: ${uploadedFile.originalFilename}`,
+    );
     console.log(
       `[signHandler] Processing file: ${uploadedFile.originalFilename}`,
     );
@@ -225,7 +231,6 @@ export const signHandler = async (req: Request, res: Response) => {
     const signedPdfBytes = await pdfDoc.save();
     const hash = HashService.hashBuffer(Buffer.from(signedPdfBytes));
     console.log(`[signHandler] Signed PDF hash: ${hash}`);
-
     // Sign the hash with USB token (returns base64 RSA signature)
     const rsaSignatureBase64 = signer.signHash(hash);
 

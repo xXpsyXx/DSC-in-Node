@@ -1,6 +1,9 @@
 import os from 'os';
 import forge from 'node-forge';
 import * as pkcs11js from 'pkcs11js';
+import os from 'os';
+import forge from 'node-forge';
+import * as pkcs11js from 'pkcs11js';
 
 export class SignerService {
   private signerName: string;
@@ -385,7 +388,24 @@ export class SignerService {
       { mechanism: pkcs11js.CKM_SHA256_RSA_PKCS },
       privateKey,
     );
+    const session = this.pkcs11Session;
+    const privateKey = this.pkcs11PrivateKey;
+    const pkcs11 = this.requirePkcs11();
 
+    if (!session || !privateKey) {
+      throw new Error('PKCS#11 session is not ready for signing');
+    }
+
+    const hashBytes = Buffer.from(hashHex, 'hex');
+
+    pkcs11.C_SignInit(
+      session,
+      { mechanism: pkcs11js.CKM_SHA256_RSA_PKCS },
+      privateKey,
+    );
+
+    const signature = pkcs11.C_Sign(session, hashBytes, Buffer.alloc(4096));
+    return signature.toString('base64');
     const signature = pkcs11.C_Sign(session, hashBytes, Buffer.alloc(4096));
     return signature.toString('base64');
   }
