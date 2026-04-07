@@ -1,0 +1,22 @@
+<service>
+  <id>DSCBackendService</id>
+  <name>DSC Backend Service</name>
+  <description>DSC PDF signing backend service</description>
+
+  <executable>%BASE%\runtime\node.exe</executable>
+  <arguments>"%BASE%\app\node_modules\tsx\dist\cli.mjs" "%BASE%\app\src\server.ts"</arguments>
+  <workingdirectory>%BASE%\app</workingdirectory>
+
+  <stoptimeout>15 sec</stoptimeout>
+
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="none" />
+
+  <logpath>%BASE%\logs</logpath>
+  <log mode="roll-by-size-time">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>14</keepFiles>
+    <pattern>yyyyMMdd</pattern>
+  </log>
+</service>
