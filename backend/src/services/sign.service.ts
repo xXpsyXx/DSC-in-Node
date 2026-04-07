@@ -334,3 +334,4 @@ export class SignerService {
     return signature.toString('base64');
   }
 }
+

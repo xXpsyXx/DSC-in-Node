@@ -9,3 +9,4 @@ router.post('/sign', signHandler);
 router.post('/verify', verifyHandler);
 
 export default router;
+

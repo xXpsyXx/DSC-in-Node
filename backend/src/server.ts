@@ -19,6 +19,11 @@ app.use(
     exposedHeaders: ['X-File-Hash', 'X-File-Signature', 'X-Signed-Date'],
   }),
 );
+app.use(
+  cors({
+    exposedHeaders: ['X-File-Hash', 'X-File-Signature', 'X-Signed-Date'],
+  }),
+);
 app.use(express.json());
 
 app.use('/api', signRoutes);

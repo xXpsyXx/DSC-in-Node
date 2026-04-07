@@ -88,7 +88,13 @@ export const signHandler = async (req: Request, res: Response) => {
     const uploadedFile = files.file?.[0];
     const pin = fields.pin?.[0];
 
+
     if (!uploadedFile) {
+      return res.status(400).json({ error: 'file is required' });
+    }
+
+    if (!pin) {
+      return res.status(400).json({ error: 'pin is required' });
       return res.status(400).json({ error: 'file is required' });
     }
 
