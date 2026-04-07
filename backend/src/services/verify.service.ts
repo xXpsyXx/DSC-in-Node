@@ -1,6 +1,9 @@
 import forge from 'node-forge';
 import os from 'os';
 import * as pkcs11js from 'pkcs11js';
+import forge from 'node-forge';
+import os from 'os';
+import * as pkcs11js from 'pkcs11js';
 
 export class VerifyService {
   private publicKey: forge.pki.PublicKey | null;

@@ -79,6 +79,7 @@ export const signHandler = async (req: Request, res: Response) => {
     maxFileSize: 50 * 1024 * 1024, // 50MB
   });
 
+
   let tempFilePath: string | null = null;
   let signer: SignerService | null = null;
 
@@ -89,6 +90,11 @@ export const signHandler = async (req: Request, res: Response) => {
     const pin = fields.pin?.[0];
 
     if (!uploadedFile) {
+      return res.status(400).json({ error: 'file is required' });
+    }
+
+    if (!pin) {
+      return res.status(400).json({ error: 'pin is required' });
       return res.status(400).json({ error: 'file is required' });
     }
 
@@ -622,3 +628,4 @@ export const certStatusHandler = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to check certificate: ' + errorMsg });
   }
 };
+
