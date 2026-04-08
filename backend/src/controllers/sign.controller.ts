@@ -6,6 +6,7 @@ import { PdfSignerService } from '../services/pdf-signer.service.ts';
 import { IncomingForm } from 'formidable';
 import fs from 'fs';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import sharp from 'sharp';
 
 let verifyService: VerifyService | null = null;
 
@@ -73,12 +74,29 @@ const getHardwareErrorResponse = (
   return null;
 };
 
+// Convert SVG to PNG buffer using sharp
+const svgToPngBuffer = async (): Promise<Buffer> => {
+  const svgCode = `<svg viewBox="0 0 100 100" width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="23,53 43,73 83,23 93,31 45,91 15,61" fill="black" />
+  <polygon points="20,50 40,70 80,20 90,28 42,88 12,58" fill="#008000" stroke="black" stroke-width="2" stroke-linejoin="miter" />
+</svg>`;
+
+  try {
+    const pngBuffer = await sharp(Buffer.from(svgCode)).png().toBuffer();
+    return pngBuffer;
+  } catch (error) {
+    console.error('[svgToPngBuffer] Error converting SVG to PNG:', error);
+    throw new Error(
+      `Failed to convert SVG to PNG: ${(error as Error).message}`,
+    );
+  }
+};
+
 // Sign uploaded PDF and embed a detached signature metadata block.
 export const signHandler = async (req: Request, res: Response) => {
   const form = new IncomingForm({
     maxFileSize: 50 * 1024 * 1024, // 50MB
   });
-
 
   let tempFilePath: string | null = null;
   let signer: SignerService | null = null;
@@ -90,11 +108,6 @@ export const signHandler = async (req: Request, res: Response) => {
     const pin = fields.pin?.[0];
 
     if (!uploadedFile) {
-      return res.status(400).json({ error: 'file is required' });
-    }
-
-    if (!pin) {
-      return res.status(400).json({ error: 'pin is required' });
       return res.status(400).json({ error: 'file is required' });
     }
 
@@ -181,49 +194,145 @@ export const signHandler = async (req: Request, res: Response) => {
     const pages = pdfDoc.getPages();
     const targetPage = pages[pages.length - 1];
     if (targetPage) {
-      // Draw signature metadata stamp box
-      const stampLines = [
-        `Signed by: ${signerName}`,
-        `Signed on: ${signedAt.toLocaleString()}`,
+      // Draw signature metadata stamp box with dashed border
+      const headerLines = [
+        'Signature valid',
+        'Digitally Signed by',
+        `${signerName}`,
       ];
+      const dateText = `Date: ${signedAt.toLocaleString('en-IN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      })}`;
+
       const stampFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const fontSize = 9;
+      const dateSize = 7.5; // Smaller font for date to prevent overflow
       const lineHeight = 12;
-      const padding = 6;
+      const padding = 8;
       const margin = 20;
-      const maxTextWidth = Math.max(
-        ...stampLines.map((line) =>
+
+      const maxHeaderWidth = Math.max(
+        ...headerLines.map((line) =>
           stampFont.widthOfTextAtSize(line, fontSize),
         ),
       );
+      const dateWidth = stampFont.widthOfTextAtSize(dateText, dateSize);
+      const maxTextWidth = Math.max(maxHeaderWidth, dateWidth);
 
-      const boxWidth = maxTextWidth + padding * 2;
-      const boxHeight = stampLines.length * lineHeight + padding * 2;
-      const { width } = targetPage.getSize();
-      const boxX = Math.max(margin, width - boxWidth - margin);
-      const boxY = margin;
+      const boxWidth = maxTextWidth + padding * 2; // No extra space needed, checkmark overlaps
+      const boxHeight = headerLines.length * lineHeight + 8 + padding * 2; // Reduced height for single-line date
+      const { width, height } = targetPage.getSize();
+      const boxX = margin; // Left border
+      const boxY = margin; // Bottom of the page
 
-      targetPage.drawRectangle({
-        x: boxX,
-        y: boxY,
-        width: boxWidth,
-        height: boxHeight,
-        color: rgb(1, 1, 1),
-        opacity: 0.8,
-        borderColor: rgb(0.0, 0.5, 1.0), // Blue border like Adobe
-        borderWidth: 1.5,
-      });
+      // Draw borders and text first
 
-      stampLines.forEach((line, index) => {
+      // Draw dashed border rectangle
+      const dashLength = 4;
+      const gapLength = 3;
+
+      // Top border (left to right)
+      let posX = boxX;
+      while (posX < boxX + boxWidth) {
+        const endX = Math.min(posX + dashLength, boxX + boxWidth);
+        targetPage.drawLine({
+          start: { x: posX, y: boxY + boxHeight },
+          end: { x: endX, y: boxY + boxHeight },
+          thickness: 1.5,
+          color: rgb(0.2, 0.2, 0.2),
+        });
+        posX += dashLength + gapLength;
+      }
+
+      // Right border (top to bottom) - Fixed alignment
+      let posY = boxY + boxHeight;
+      while (posY > boxY) {
+        const endY = Math.max(posY - dashLength, boxY);
+        targetPage.drawLine({
+          start: { x: boxX + boxWidth, y: posY },
+          end: { x: boxX + boxWidth, y: endY },
+          thickness: 1.5,
+          color: rgb(0.2, 0.2, 0.2),
+        });
+        posY -= dashLength + gapLength;
+      }
+
+      // Bottom border (right to left)
+      posX = boxX + boxWidth;
+      while (posX > boxX) {
+        const endX = Math.max(posX - dashLength, boxX);
+        targetPage.drawLine({
+          start: { x: posX, y: boxY },
+          end: { x: endX, y: boxY },
+          thickness: 1.5,
+          color: rgb(0.2, 0.2, 0.2),
+        });
+        posX -= dashLength + gapLength;
+      }
+
+      // Left border (bottom to top)
+      posY = boxY;
+      while (posY < boxY + boxHeight) {
+        const endY = Math.min(posY + dashLength, boxY + boxHeight);
+        targetPage.drawLine({
+          start: { x: boxX, y: posY },
+          end: { x: boxX, y: endY },
+          thickness: 1.5,
+          color: rgb(0.2, 0.2, 0.2),
+        });
+        posY += dashLength + gapLength;
+      }
+
+      // Draw the SVG checkmark first (behind the text)
+      try {
+        const checkmarkPngBuffer = await svgToPngBuffer();
+        const checkmarkImage = await pdfDoc.embedPng(checkmarkPngBuffer);
+        const checkmarkSize = 45; // Larger checkmark to overlay content
+        // Position checkmark to the left inside the box
+        const checkmarkX = boxX + 12; // Left side inside box, moved right
+        const checkmarkY = boxY + boxHeight / 2 - checkmarkSize / 2; // Vertically centered in the box
+
+        targetPage.drawImage(checkmarkImage, {
+          x: checkmarkX,
+          y: checkmarkY,
+          width: checkmarkSize,
+          height: checkmarkSize,
+        });
+      } catch (imgError) {
+        console.warn(
+          '[signHandler] Failed to embed checkmark image:',
+          imgError,
+        );
+      }
+
+      // Draw header text lines
+      headerLines.forEach((line, index) => {
         const textY =
           boxY + boxHeight - padding - fontSize - index * lineHeight;
+
         targetPage.drawText(line, {
           x: boxX + padding,
           y: textY,
           size: fontSize,
           font: stampFont,
-          color: rgb(0.0, 0.5, 1.0), // Blue text
+          color: rgb(0.2, 0.2, 0.2),
         });
+      });
+
+      // Draw date with smaller font
+      const dateY = boxY + padding + 1;
+      targetPage.drawText(dateText, {
+        x: boxX + padding,
+        y: dateY,
+        size: dateSize,
+        font: stampFont,
+        color: rgb(0.2, 0.2, 0.2),
       });
     }
 
@@ -628,4 +737,3 @@ export const certStatusHandler = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to check certificate: ' + errorMsg });
   }
 };
-

@@ -1,6 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
+  "type":"module",
   "description": "PDF Digital Signature with Hypersecu USB Token",
   "main": "index.js",
   "scripts": {
@@ -30,6 +31,7 @@
     "pdf-lib": "^1.17.1",
     "pdf-signer": "^1.1.4",
     "pkcs11js": "^2.1.6",
+    "sharp": "^0.33.5",
     "tsx": "^4.21.0"
   },
   "devDependencies": {

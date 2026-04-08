@@ -14,12 +14,6 @@ dotenv.config({ path: path.join(projectRoot, '.env') });
 const app = express();
 const port = Number.parseInt(process.env.PORT || '5000', 10);
 
-
-app.use(
-  cors({
-    exposedHeaders: ['X-File-Hash', 'X-File-Signature', 'X-Signed-Date'],
-  }),
-);
 app.use(
   cors({
     exposedHeaders: ['X-File-Hash', 'X-File-Signature', 'X-Signed-Date'],
