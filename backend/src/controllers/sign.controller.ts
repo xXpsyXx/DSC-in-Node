@@ -106,6 +106,7 @@ export const signHandler = async (req: Request, res: Response) => {
 
     const uploadedFile = files.file?.[0];
     const pin = fields.pin?.[0];
+    const driverPath = fields.driverPath?.[0]; // NEW: Optional custom driver path
 
     if (!uploadedFile) {
       return res.status(400).json({ error: 'file is required' });
@@ -118,6 +119,9 @@ export const signHandler = async (req: Request, res: Response) => {
     console.log(
       `[signHandler] Processing file: ${uploadedFile.originalFilename}`,
     );
+    if (driverPath) {
+      console.log(`[signHandler] Using custom driver: ${driverPath}`);
+    }
 
     // Read file buffer
     const fileBuffer = fs.readFileSync(uploadedFile.filepath);
@@ -125,7 +129,7 @@ export const signHandler = async (req: Request, res: Response) => {
 
     // Load signer first so we can stamp certificate holder name in the PDF
     try {
-      signer = new SignerService(pin);
+      signer = new SignerService(pin, driverPath); // Pass optional driver path
     } catch (signError) {
       const errorMsg = (signError as any).message || '';
       console.error('[signHandler] Signing error:', errorMsg);
@@ -735,5 +739,60 @@ export const certStatusHandler = async (req: Request, res: Response) => {
     }
 
     res.status(500).json({ error: 'Failed to check certificate: ' + errorMsg });
+  }
+};
+
+// NEW: Get list of supported USB token drivers
+export const getSupportedDriversHandler = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const drivers = SignerService.getSupportedDrivers();
+    res.json({
+      platform: process.platform,
+      drivers,
+      message: 'Supported USB token drivers for digital signing',
+    });
+  } catch (error) {
+    console.error('[getSupportedDriversHandler] Error:', error);
+    res.status(500).json({
+      error: 'Failed to retrieve supported drivers',
+    });
+  }
+};
+
+// NEW: Auto-detect connected USB token
+export const autoDetectTokenHandler = async (req: Request, res: Response) => {
+  try {
+    console.log(
+      '[autoDetectTokenHandler] Starting USB token auto-detection...',
+    );
+    const detectedDevice = SignerService.autoDetectDriver();
+
+    if (!detectedDevice) {
+      console.warn('[autoDetectTokenHandler] No USB token device detected');
+      return res.status(404).json({
+        detected: false,
+        message:
+          'No USB token device detected. Please insert your USB token and try again.',
+      });
+    }
+
+    console.log(
+      `[autoDetectTokenHandler] Device detected: ${detectedDevice.driverName}`,
+    );
+    res.json({
+      detected: true,
+      driverName: detectedDevice.driverName,
+      driverPath: detectedDevice.driverPath,
+      message: `USB token detected: ${detectedDevice.driverName}`,
+    });
+  } catch (error) {
+    console.error('[autoDetectTokenHandler] Error:', error);
+    res.status(500).json({
+      detected: false,
+      error: 'Failed to auto-detect USB token',
+    });
   }
 };

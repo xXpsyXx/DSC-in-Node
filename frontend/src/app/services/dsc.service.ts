@@ -45,10 +45,13 @@ export class DscService {
 
   constructor(private http: HttpClient) {}
 
-  signPdf(file: File, pin: string): Observable<SignPdfResult> {
+  signPdf(file: File, pin: string, driverPath?: string): Observable<SignPdfResult> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('pin', pin);
+    if (driverPath) {
+      formData.append('driverPath', driverPath); // NEW: Optional driver path
+    }
     return this.http
       .post(`${this.apiUrl}/sign`, formData, {
         responseType: 'blob' as const,
@@ -93,6 +96,16 @@ export class DscService {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
+  }
+
+  // NEW: Get list of supported USB token drivers
+  getSupportedDrivers(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/supported-drivers`);
+  }
+
+  // NEW: Auto-detect connected USB token device
+  autoDetectToken(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/auto-detect-token`);
   }
 
   async getApiErrorInfo(error: unknown): Promise<ApiErrorInfo> {

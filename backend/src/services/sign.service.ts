@@ -9,14 +9,16 @@ export class SignerService {
   private pkcs11PrivateKey: pkcs11js.Handle | null;
   private certificateDer: Buffer | null;
   private closed: boolean;
+  private customDriverPath: string | undefined; // Optional custom driver path
 
-  constructor(pin: string) {
+  constructor(pin: string, customDriverPath?: string) {
     this.signerName = 'Unknown Signer';
     this.pkcs11 = null;
     this.pkcs11Session = null;
     this.pkcs11PrivateKey = null;
     this.certificateDer = null;
     this.closed = false;
+    this.customDriverPath = customDriverPath;
 
     const pkcs11LibraryPath = this.resolvePkcs11LibraryPath();
 
@@ -188,6 +190,11 @@ export class SignerService {
   }
 
   private resolvePkcs11LibraryPath(): string | null {
+    // If custom driver path provided, use it first
+    if (this.customDriverPath?.trim()) {
+      return this.customDriverPath.trim();
+    }
+
     const directPath = process.env.PKCS11_LIBRARY_PATH?.trim();
     if (directPath) {
       return directPath;
@@ -204,6 +211,94 @@ export class SignerService {
       return process.env.PKCS11_LIBRARY_PATH_DARWIN?.trim() || null;
     }
 
+    return null;
+  }
+
+  // Static method to list supported drivers
+  static getSupportedDrivers(): Array<{
+    name: string;
+    path: string;
+    enabled: boolean;
+  }> {
+    const platform = os.platform();
+    const drivers = [
+      {
+        name: 'Hypersecu ePass3000',
+        path:
+          platform === 'win32'
+            ? 'C:\\Windows\\System32\\eps2003csp11v2.dll'
+            : '/usr/lib/libepass2003.so',
+        enabled: true,
+      },
+      {
+        name: 'SafeNet eToken',
+        path:
+          platform === 'win32'
+            ? 'C:\\Windows\\System32\\eTPKCS11.dll'
+            : '/usr/lib/libeTPKCS11.so',
+        enabled: false,
+      },
+      {
+        name: 'Thales Luna USB',
+        path:
+          platform === 'win32'
+            ? 'C:\\Windows\\System32\\lunacsp.dll'
+            : '/usr/lib/liblunacsp.so',
+        enabled: false,
+      },
+      {
+        name: 'YubiKey 5',
+        path:
+          platform === 'win32'
+            ? 'C:\\Windows\\System32\\ykcs11.dll'
+            : '/usr/lib/libykcs11.so',
+        enabled: false,
+      },
+      {
+        name: 'Gemalto IDGo 800',
+        path:
+          platform === 'win32'
+            ? 'C:\\Windows\\System32\\gclib.dll'
+            : '/usr/lib/libgclib.so',
+        enabled: false,
+      },
+    ];
+
+    return drivers;
+  }
+
+  // NEW: Auto-detect connected USB token and return driver info
+  static autoDetectDriver(): {
+    driverPath: string;
+    driverName: string;
+  } | null {
+    const drivers = this.getSupportedDrivers();
+
+    for (const driver of drivers) {
+      try {
+        const pkcs11 = new pkcs11js.PKCS11();
+        pkcs11.load(driver.path);
+        pkcs11.C_Initialize();
+
+        const slots = pkcs11.C_GetSlotList(true);
+
+        // If we can get slots, this driver works
+        pkcs11.C_Finalize();
+
+        console.log(
+          `[autoDetectDriver] Detected device: ${driver.name} (${driver.path})`,
+        );
+        return {
+          driverPath: driver.path,
+          driverName: driver.name,
+        };
+      } catch (error) {
+        // This driver didn't work, try next one
+        console.log(`[autoDetectDriver] Driver not available: ${driver.name}`);
+      }
+    }
+
+    // No driver found
     return null;
   }
 

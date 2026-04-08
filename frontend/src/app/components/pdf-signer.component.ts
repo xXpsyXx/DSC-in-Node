@@ -42,6 +42,12 @@ export class PdfSignerComponent implements AfterViewInit {
   } | null>(null);
   showCertStatusModal = signal(false);
 
+  // NEW: Auto-detection signals
+  detectedDevice = signal<string>(''); // Device name
+  detectedDevicePath = signal<string>(''); // Driver path
+  isDetectingDevice = signal(false);
+  deviceDetectionError = signal<string>('');
+
   constructor(private dscService: DscService) {}
 
   onFileSelected(event: Event): void {
@@ -75,7 +81,33 @@ export class PdfSignerComponent implements AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // Component initialized
+    // Auto-detect USB token device
+    this.autoDetectDevice();
+  }
+
+  // NEW: Auto-detect connected USB token
+  private autoDetectDevice(): void {
+    this.isDetectingDevice.set(true);
+    this.deviceDetectionError.set('');
+
+    this.dscService.autoDetectToken().subscribe({
+      next: (response: any) => {
+        if (response.detected) {
+          this.detectedDevice.set(response.driverName);
+          this.detectedDevicePath.set(response.driverPath);
+          console.log(`✅ Detected: ${response.driverName}`);
+        } else {
+          this.deviceDetectionError.set(response.message);
+          console.warn('⚠️ No device detected');
+        }
+        this.isDetectingDevice.set(false);
+      },
+      error: (error) => {
+        this.deviceDetectionError.set('Could not auto-detect USB token device');
+        console.error('Auto-detection error:', error);
+        this.isDetectingDevice.set(false);
+      },
+    });
   }
 
   private focusPinInput(): void {
@@ -167,7 +199,8 @@ export class PdfSignerComponent implements AfterViewInit {
 
   private performSigning(file: File, pin: string): void {
     this.isLoading.set(true);
-    this.dscService.signPdf(file, pin).subscribe({
+    const driverPath = this.detectedDevicePath() ? this.detectedDevicePath() : undefined;
+    this.dscService.signPdf(file, pin, driverPath).subscribe({
       next: (result) => {
         const signedFileName = file.name.replace('.pdf', '_signed.pdf');
         this.signingResult.set({

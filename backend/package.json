@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "type":"module",
+  "type": "module",
   "description": "PDF Digital Signature with Hypersecu USB Token",
   "main": "index.js",
   "scripts": {

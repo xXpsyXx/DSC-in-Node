@@ -21,6 +21,25 @@
         <p><strong>Selected file:</strong> {{ selectedFile()?.name }}</p>
         <p><strong>Size:</strong> {{ (selectedFile()?.size ?? 0) / 1024 | number: '1.2-2' }} KB</p>
       </div>
+
+      <!-- NEW: USB Token Auto-Detection Status -->
+      <div class="device-detection">
+        <div *ngIf="isDetectingDevice()" class="detecting">
+          <p>🔍 Scanning for USB token...</p>
+          <div class="spinner"></div>
+        </div>
+
+        <div *ngIf="!isDetectingDevice() && detectedDevice()" class="detected-success">
+          <p>✅ <strong>USB Token Detected:</strong> {{ detectedDevice() }}</p>
+        </div>
+
+        <div
+          *ngIf="!isDetectingDevice() && deviceDetectionError() && !detectedDevice()"
+          class="detected-error"
+        >
+          <p>⚠️ {{ deviceDetectionError() }}</p>
+        </div>
+      </div>
     </div>
 
     <button (click)="onSignClick()" [disabled]="!selectedFile() || isLoading()" class="sign-button">
