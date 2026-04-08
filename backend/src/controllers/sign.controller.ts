@@ -232,7 +232,7 @@ export const signHandler = async (req: Request, res: Response) => {
       const boxWidth = maxTextWidth + padding * 2; // No extra space needed, checkmark overlaps
       const boxHeight = headerLines.length * lineHeight + 8 + padding * 2; // Reduced height for single-line date
       const { width, height } = targetPage.getSize();
-      const boxX = margin; // Left border
+      const boxX = width - boxWidth - margin; // Right border
       const boxY = margin; // Bottom of the page
 
       // Draw borders and text first
