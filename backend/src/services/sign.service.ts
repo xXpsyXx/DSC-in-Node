@@ -9,7 +9,7 @@ export class SignerService {
   private pkcs11PrivateKey: pkcs11js.Handle | null;
   private certificateDer: Buffer | null;
   private closed: boolean;
-  private customDriverPath: string | undefined; // Optional custom driver path
+  private customDriverPath?: string; // Optional custom driver path
 
   constructor(pin: string, customDriverPath?: string) {
     this.signerName = 'Unknown Signer';

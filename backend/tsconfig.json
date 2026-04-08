@@ -7,8 +7,7 @@
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "module": "ES2020",
     "target": "esnext",
     "lib": ["esnext"],
     "types": ["node"],
@@ -36,7 +35,6 @@
     // Recommended Options
     "strict": true,
     "jsx": "react-jsx",
-    "allowSyntheticDefaultImports": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
