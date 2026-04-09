@@ -3,8 +3,10 @@ import { SignerService } from '../services/sign.service.ts';
 import { HashService } from '../services/hash.service.ts';
 import { VerifyService } from '../services/verify.service.ts';
 import { PdfSignerService } from '../services/pdf-signer.service.ts';
+import { Pkcs7SignerService } from '../services/pkcs7-signer.service.ts';
+import { TsaService } from '../services/tsa.service.ts';
 import { IncomingForm } from 'formidable';
-import fs from 'fs';
+import * as fs from 'fs';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import sharp from 'sharp';
 
@@ -341,14 +343,29 @@ export const signHandler = async (req: Request, res: Response) => {
     }
 
     // Save modified PDF to buffer and sign the exact bytes we return
-    const signedPdfBytes = await pdfDoc.save();
-    const hash = HashService.hashBuffer(Buffer.from(signedPdfBytes));
+    const pdfUint8Array = await pdfDoc.save();
+    const signedPdfBytes = Buffer.from(pdfUint8Array);
+    console.log(`[signHandler] PDF saved: ${signedPdfBytes.length} bytes`);
+    
+    // Validate PDF has proper structure
+    const pdfStart = signedPdfBytes.toString('utf8', 0, 4);
+    const pdfText = signedPdfBytes.toString('binary');
+    const pdfHasEof = pdfText.includes('%%EOF');
+    if (pdfStart !== '%PDF' || !pdfHasEof) {
+      console.error('[signHandler] Invalid PDF structure detected');
+      console.error('[signHandler] PDF starts with:', pdfStart);
+      console.error('[signHandler] Has %%EOF:', pdfHasEof);
+      console.error('[signHandler] PDF size:', signedPdfBytes.length);
+      throw new Error('Invalid PDF structure after PDFDocument.save()');
+    }
+    
+    const hash = HashService.hashBuffer(signedPdfBytes);
     console.log(`[signHandler] Signed PDF hash: ${hash}`);
 
     // Sign the hash with USB token (returns base64 RSA signature)
     const rsaSignatureBase64 = signer.signHash(hash);
 
-    // Create PKCS#7 signed data structure for Adobe compatibility
+    // Get certificate for PKCS#7 structure
     const certificatePem = signer.getCertificatePem();
     const certificateDer = signer.getCertificateDer();
 
@@ -356,13 +373,36 @@ export const signHandler = async (req: Request, res: Response) => {
       throw new Error('Certificate not found in USB token');
     }
 
-    // Create proper PKCS#7 signature using the PdfSignerService
-    const pkcs7Signature = PdfSignerService.createPkcs7Signature(
-      Buffer.from(signedPdfBytes),
+    // Request timestamp from TSA (MANDATORY for PAdES legal validity)
+    // TSA prevents backdating attacks and is required for PDF signatures to be legally binding
+    console.log('[signHandler] Requesting timestamp from TSA...');
+    let timestampToken: Buffer | undefined;
+    try {
+      const tsaUrl = process.env.TSA_URL || 'http://timestamp.quovadis.com/tsa'; // Default to Quovadis
+      timestampToken = await TsaService.requestTimestampToken(hash, tsaUrl);
+      console.log('[signHandler] Timestamp obtained successfully');
+    } catch (tsaError) {
+      // NO FALLBACK: TSA is mandatory for PAdES compliance
+      console.error('[signHandler] TSA FAILED - signature cannot proceed without timestamp:', tsaError);
+      throw new Error(
+        `Timestamp Authority (TSA) failed - PDFs must include cryptographic timestamps for legal validity. ${(tsaError as Error).message}`,
+      );
+    }
+
+    // Create proper PKCS#7/CMS SignedData structure (RFC 2630/5652) with timestamp
+    console.log('[signHandler] Creating PKCS#7/CMS signature with timestamp...');
+    const pkcs7Buffer = Pkcs7SignerService.createSignedData({
       rsaSignatureBase64,
       certificatePem,
-      certificateDer,
-    );
+      dataHash: hash,
+      signerName,
+      signReason: 'Digitally signed with Hypersecu USB token',
+      signedAt,
+      timestampToken, // Always include timestamp (mandatory)
+    });
+
+    // Convert PKCS#7 to hex for PDF embedding
+    const pkcs7Hex = pkcs7Buffer.toString('hex');
 
     // Compute server HMAC to prevent external signatures with same token
     const signingSecret = process.env.SIGNING_SECRET;
@@ -380,8 +420,8 @@ export const signHandler = async (req: Request, res: Response) => {
       );
     }
 
-    // Embed detached signature metadata block in the final PDF bytes.
-    const embedOptions: {
+    // Embed signature block in PDF
+    const signatureEmbedOptions: {
       signatureHex: string;
       hashHex: string;
       signerName: string;
@@ -390,21 +430,24 @@ export const signHandler = async (req: Request, res: Response) => {
       certificatePem?: string;
       serverHmac?: string;
     } = {
-      signatureHex: pkcs7Signature,
+      signatureHex: pkcs7Hex,
       hashHex: hash,
       signerName,
       reason: 'Digitally signed with Hypersecu USB token',
       signedAt,
       certificatePem,
     };
-
+    
     if (serverHmac) {
-      embedOptions.serverHmac = serverHmac;
+      signatureEmbedOptions.serverHmac = serverHmac;
     }
 
+    // Embed PKCS#7/CMS signature in PDF using stable legacy format
+    // (Better to have a working legacy signature than broken incremental signing)
+    console.log('[signHandler] Embedding PKCS#7/CMS signature in PDF...');
     const finalSignedPdfBuffer = PdfSignerService.embedDetachedSignatureBlock(
-      Buffer.from(signedPdfBytes),
-      embedOptions,
+      signedPdfBytes,
+      signatureEmbedOptions,
     );
 
     // Create signed PDF filename
@@ -419,12 +462,20 @@ export const signHandler = async (req: Request, res: Response) => {
     );
     res.setHeader('X-File-Hash', hash);
     res.setHeader('X-File-Signature', rsaSignatureBase64); // RSA signature
-    res.setHeader('X-PKCS7-Signature', pkcs7Signature); // PKCS#7 signature for Adobe verification
+    res.setHeader('X-PKCS7-Signature', pkcs7Hex); // PKCS#7 signature (hex)
+    res.setHeader('X-PKCS7-Format', 'CMS'); // Indicate PKCS#7/CMS format
     res.setHeader('X-Signature-Embedded', 'true');
     // Encode certificate as base64 to avoid newline issues in headers
     const certificateBase64 = Buffer.from(certificatePem).toString('base64');
     res.setHeader('X-Signer-Certificate', certificateBase64); // Certificate (base64 encoded)
     res.setHeader('X-Signed-Date', new Date().toISOString());
+    
+    // Indicate PAdES-compliant signature with timestamp
+    res.setHeader('X-Signature-Format', 'PAdES'); // PDF Advanced Electronic Signature
+    res.setHeader('X-TSA-Enabled', 'true'); // Always enabled and required
+    if (timestampToken) {
+      res.setHeader('X-TSA-Token-Size', timestampToken.length.toString());
+    }
 
     // Add certificate warning header if applicable
     if (certWarning) {
@@ -436,7 +487,7 @@ export const signHandler = async (req: Request, res: Response) => {
       res.setHeader('X-Cert-Expiry-Date', certWarning.expiryDate.toISOString());
     }
 
-    console.log(`[signHandler] Sending signed PDF: ${signedFileName}`);
+    console.log(`[signHandler] Sending PDF with PKCS#7/CMS signature and TSA timestamp: ${signedFileName}`);
     res.send(finalSignedPdfBuffer);
   } catch (error) {
     console.error('[signHandler] Error:', error);

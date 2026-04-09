@@ -1,5 +1,5 @@
-import os from 'os';
-import forge from 'node-forge';
+import * as os from 'os';
+import * as forge from 'node-forge';
 import * as pkcs11js from 'pkcs11js';
 
 export class SignerService {
@@ -9,7 +9,7 @@ export class SignerService {
   private pkcs11PrivateKey: pkcs11js.Handle | null;
   private certificateDer: Buffer | null;
   private closed: boolean;
-  private customDriverPath?: string; // Optional custom driver path
+  private customDriverPath: string | undefined;
 
   constructor(pin: string, customDriverPath?: string) {
     this.signerName = 'Unknown Signer';
@@ -356,7 +356,7 @@ export class SignerService {
     const attrs = pkcs11.C_GetAttributeValue(session, objectHandle, [
       { type: attributeType },
     ]);
-    const matched = attrs.find((attr) => attr.type === attributeType);
+    const matched = attrs.find((attr: { type: number; }) => attr.type === attributeType);
     if (!matched) {
       return null;
     }

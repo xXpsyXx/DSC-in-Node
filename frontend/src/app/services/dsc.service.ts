@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
+import { Observable, map, from } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 
 export interface VerifyEmbeddedSignatureResponse {
   isValid: boolean;
@@ -42,43 +43,96 @@ export interface ApiErrorInfo {
 })
 export class DscService {
   private apiUrl = 'http://localhost:45763/api';
+  // Must match REQUEST_SIGNER_SECRET on backend
+  private readonly REQUEST_SIGNER_SECRET = 'your-request-signer-secret-change-this-in-production';
 
   constructor(private http: HttpClient) {}
 
+  /**
+   * Browser-safe HMAC-SHA256 using Web Crypto API
+   */
+  private async hmacSha256(key: string, message: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(key);
+    const messageData = encoder.encode(message);
+
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+
+    const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
+    return Array.from(new Uint8Array(signature))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  /**
+   * Sign a request with HMAC-SHA256 for backend verification
+   */
+  private async signRequest(
+    method: string,
+    path: string,
+  ): Promise<{
+    signature: string;
+    timestamp: number;
+  }> {
+    const timestamp = Date.now();
+    const signedMessage = `${method}\n${path}\n${timestamp}`;
+    const signature = await this.hmacSha256(this.REQUEST_SIGNER_SECRET, signedMessage);
+    return { signature, timestamp };
+  }
+
   signPdf(file: File, pin: string, driverPath?: string): Observable<SignPdfResult> {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('pin', pin);
-    if (driverPath) {
-      formData.append('driverPath', driverPath); // NEW: Optional driver path
-    }
-    return this.http
-      .post(`${this.apiUrl}/sign`, formData, {
-        responseType: 'blob' as const,
-        observe: 'response' as const,
-      })
-      .pipe(
-        map((response) => {
-          const certWarningMessage = response.headers.get('X-Cert-Warning');
-          const certDaysRemaining = response.headers.get('X-Cert-Days-Remaining');
-          const certExpiryDate = response.headers.get('X-Cert-Expiry-Date');
+    // Create request signature before making HTTP request
+    return from(this.signRequest('POST', '/api/sign')).pipe(
+      switchMap(({ signature, timestamp }) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('pin', pin);
+        if (driverPath) {
+          formData.append('driverPath', driverPath); // Optional driver path
+        }
 
-          const result: SignPdfResult = {
-            blob: response.body ?? new Blob(),
-            signedDate: response.headers.get('X-Signed-Date') ?? '',
-          };
+        // Add request signature headers
+        const headers = new HttpHeaders({
+          'X-Request-Signature': signature,
+          'X-Request-Timestamp': timestamp.toString(),
+        });
 
-          if (certWarningMessage && certDaysRemaining && certExpiryDate) {
-            result.certWarning = {
-              message: certWarningMessage,
-              daysRemaining: parseInt(certDaysRemaining, 10),
-              expiryDate: certExpiryDate,
-            };
-          }
+        return this.http
+          .post(`${this.apiUrl}/sign`, formData, {
+            headers,
+            responseType: 'blob' as const,
+            observe: 'response' as const,
+          })
+          .pipe(
+            map((response) => {
+              const certWarningMessage = response.headers.get('X-Cert-Warning');
+              const certDaysRemaining = response.headers.get('X-Cert-Days-Remaining');
+              const certExpiryDate = response.headers.get('X-Cert-Expiry-Date');
 
-          return result;
-        }),
-      );
+              const result: SignPdfResult = {
+                blob: response.body ?? new Blob(),
+                signedDate: response.headers.get('X-Signed-Date') ?? '',
+              };
+
+              if (certWarningMessage && certDaysRemaining && certExpiryDate) {
+                result.certWarning = {
+                  message: certWarningMessage,
+                  daysRemaining: parseInt(certDaysRemaining, 10),
+                  expiryDate: certExpiryDate,
+                };
+              }
+
+              return result;
+            }),
+          );
+      }),
+    );
   }
 
   verifyEmbeddedSignature(file: File): Observable<VerifyEmbeddedSignatureResponse> {
