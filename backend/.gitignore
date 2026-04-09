@@ -53,8 +53,7 @@ temp/
 *.tmp
 
 # Installer output (except source scripts)
-installer/output/
-installer/*.exe
+
 
 # Node native modules
 build/Release/
