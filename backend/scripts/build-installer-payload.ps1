@@ -25,6 +25,17 @@ $nodeUrl = "https://nodejs.org/dist/$normalizedNodeVersion/$nodeZipName"
 $nodeZipPath = Join-Path $payloadRoot $nodeZipName
 $nodeExtractedDir = Join-Path $payloadRoot "node-$normalizedNodeVersion-win-$Arch"
 
+Write-Host "Building and obfuscating source code..."
+Push-Location $repoRoot
+try {
+    npm run build:obfuscated
+    if ($LASTEXITCODE -ne 0) {
+        throw "Build and obfuscation failed"
+    }
+} finally {
+    Pop-Location
+}
+
 Write-Host "Preparing installer payload at $payloadRoot"
 
 if (Test-Path $payloadRoot) {
@@ -36,7 +47,7 @@ New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $serviceWrapperRoot -Force | Out-Null
 
 $requiredItems = @(
-    "src",
+    "dist",
     "package.json",
     "package-lock.json",
     ".env"

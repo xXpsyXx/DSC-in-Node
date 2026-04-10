@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import signRoutes from './routes/sign.route.ts';
+import signRoutes from './routes/sign.route';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';

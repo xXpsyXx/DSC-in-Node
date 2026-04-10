@@ -6,8 +6,8 @@ import {
   certStatusHandler,
   getSupportedDriversHandler,
   autoDetectTokenHandler,
-} from '../controllers/sign.controller.ts';
-import { verifyRequestSignature } from '../middleware/request-signer.middleware.ts';
+} from '../controllers/sign.controller';
+import { verifyRequestSignature } from '../middleware/request-signer.middleware';
 
 /**
  * Get request signer secret from environment configuration.

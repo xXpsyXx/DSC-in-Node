@@ -4,7 +4,7 @@
   <description>DSC PDF signing backend service</description>
 
   <executable>%BASE%\runtime\node.exe</executable>
-  <arguments>"%BASE%\app\node_modules\tsx\dist\cli.mjs" "%BASE%\app\src\server.ts"</arguments>
+  <arguments>"%BASE%\app\dist\server.js"</arguments>
   <workingdirectory>%BASE%\app</workingdirectory>
 
   <stoptimeout>15 sec</stoptimeout>
