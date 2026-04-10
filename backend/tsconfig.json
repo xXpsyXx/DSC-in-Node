@@ -41,7 +41,9 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true
   },
   "ts-node": {
     "esm": true,
