@@ -74,18 +74,36 @@ On the **Windows machine** where you want to run the app:
 
 Copy the entire `dist/` folder to the target machine (e.g., `C:\DSCBackend\`)
 
-### 2. Configure the Application
+### 2. Run It! (That's It!)
 
-Edit `dist/.env`:
-
-```env
-PORT=5000
-REQUEST_SIGNER_SECRET=your-secret-key
-NODE_ENV=production
-LOG_LEVEL=info
+```powershell
+cd C:\DSCBackend
+.\DSCBackend.exe
 ```
 
-### 3. Install Optional USB Token Driver
+✅ The app starts immediately with working defaults!
+
+- Port: 5000
+- Logging: Enabled
+- Ready to accept requests
+
+### 3. (Optional) Customize Configuration
+
+If you need to change settings, edit `.env`:
+
+```powershell
+notepad .env
+```
+
+Common settings:
+
+- `PORT` - Change listening port (default: 5000)
+- `REQUEST_SIGNER_SECRET` - Change for production (currently: default-insecure-key-change-in-production)
+- `LOG_LEVEL` - Set logging verbosity (default: info)
+
+After editing, restart the application.
+
+### 4. (Optional) Install USB Token Driver
 
 If using PKCS#11 USB tokens:
 
@@ -93,18 +111,9 @@ If using PKCS#11 USB tokens:
 - Plug in the USB token
 - Application will auto-detect on startup
 
-### 4. Option A: Run Directly
+### 5. (Optional) Install as Windows Service (Recommended)
 
-```powershell
-cd C:\DSCBackend
-.\DSCBackend.exe
-```
-
-The app is now running as a standalone executable!
-
-### 4. Option B: Install as Windows Service (Recommended)
-
-For production, register as an auto-starting Windows Service:
+For production with auto-start on boot and auto-restart on failure:
 
 #### Step 1: Download NSSM
 

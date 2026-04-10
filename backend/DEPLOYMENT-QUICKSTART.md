@@ -26,13 +26,15 @@ backend/dist/
 
 ### 3 Ways to Deploy
 
-#### **Option 1: Direct Execution** (Simplest)
+#### **Option 1: Direct Execution** (Simplest - Works Immediately!)
 
 ```powershell
+# Copy dist/ folder to target machine (e.g., C:\DSCBackend\)
+# That's it! Just run:
 .\DSCBackend.exe
 ```
 
-App runs on `http://localhost:5000`
+App starts on `http://localhost:5000` with working defaults. No setup needed!
 
 #### **Option 2: Windows Service** (Recommended for Production)
 
@@ -43,6 +45,26 @@ App runs on `http://localhost:5000`
 .\install-service.ps1
 ```
 
+Service auto-starts on boot, auto-restarts on failure. Works with included .env!
+
+#### **Option 3: Customize Settings** (Optional)
+
+```powershell
+# Edit .env to customize (optional, already has working defaults)
+notepad .env
+
+# Change PORT, REQUEST_SIGNER_SECRET, etc. as needed
+# Then run executable or service with new settings
+```
+
+# 2. Place nssm.exe in same directory as DSCBackend.exe
+
+# 3. Run:
+
+.\install-service.ps1
+
+````
+
 Service auto-starts on boot, auto-restarts on failure.
 
 #### **Option 3: Task Scheduler**
@@ -51,7 +73,7 @@ Service auto-starts on boot, auto-restarts on failure.
 $action = New-ScheduledTaskAction -Execute "C:\DSCBackend\DSCBackend.exe"
 $trigger = New-ScheduledTaskTrigger -AtStartup
 Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "DSCBackend"
-```
+````
 
 ---
 

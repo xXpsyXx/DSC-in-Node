@@ -1,5 +1,5 @@
 param(
-    [string]$AppName = "DSCBackend",
+    [string]$AppName = "DSCBackend",                                                     
     [string]$NodeVersion = "18",
     [string]$Platform = "win-x64"
 )
@@ -155,40 +155,60 @@ if (Test-Path $pkcs11Source) {
     Write-Host "⚠ pkcs11js not found in node_modules, skipping..." -ForegroundColor Yellow
 }
 
-# Create .env.example (do NOT copy production .env)
-$envExample = @"
+# Create .env with sensible defaults (app works immediately!)
+$envDefault = @"
 # DSC Backend Configuration
-# Copy this file to .env and fill in your values
-# WARNING: Keep .env file private - contains sensitive configuration
+# This file contains working defaults - edit as needed for your environment
 
 PORT=5000
 NODE_ENV=production
 LOG_LEVEL=info
 
-# API Configuration
-REQUEST_SIGNER_SECRET=your-secret-key-here-change-this
+# API Configuration - CHANGE THIS FOR PRODUCTION!
+REQUEST_SIGNER_SECRET=default-insecure-key-change-in-production
 API_TIMEOUT=30000
 
 # PKCS#11 Configuration (if using USB tokens)
 PKCS11_MODULE_PATH=
 PKCS11_SLOT=
+"@
 
-# Optional: Azure/Cloud settings
-# AZURE_KEY_VAULT_URL=
-# AZURE_CLIENT_ID=
-# AZURE_CLIENT_SECRET=
+$envFile = Join-Path $distDir ".env"
+Set-Content -Path $envFile -Value $envDefault -Encoding UTF8
+Write-Host "✓ Created .env with working defaults (app runs immediately!)" -ForegroundColor Green
+
+# Also create .env.example for reference
+$envExample = @"
+# DSC Backend Configuration - REFERENCE ONLY
+# The .env file in this directory contains your configuration
+# Edit .env to customize for your environment
+
+# Server Configuration
+PORT=5000
+NODE_ENV=production
+LOG_LEVEL=info
+
+# API Security - MUST CHANGE FOR PRODUCTION!
+REQUEST_SIGNER_SECRET=your-secure-secret-key-here
+API_TIMEOUT=30000
+
+# PKCS#11 / USB Token Configuration (optional)
+# Set these if using hardware security tokens
+PKCS11_MODULE_PATH=
+PKCS11_SLOT=
 "@
 
 $envExampleFile = Join-Path $distDir ".env.example"
 Set-Content -Path $envExampleFile -Value $envExample -Encoding UTF8
-Write-Host "✓ Created .env.example template (configure and rename to .env)" -ForegroundColor Yellow
+Write-Host "✓ Created .env.example as reference" -ForegroundColor Gray
+
+Write-Host "`n⚠️  PRODUCTION SECURITY: Change REQUEST_SIGNER_SECRET in .env!" -ForegroundColor Yellow
 
 # Check if .env should be included in deployment
 if (Test-Path (Join-Path $repoRoot ".env")) {
     Write-Host "`n⚠️  WARNING: .env file exists in source directory" -ForegroundColor Yellow
-    Write-Host "   For security, .env is NOT automatically copied to dist/" -ForegroundColor Yellow
-    Write-Host "   You must manually configure .env on the target machine" -ForegroundColor Yellow
-    Write-Host "   Use .env.example as a template" -ForegroundColor Yellow
+    Write-Host "   Source .env is NOT copied to dist/ for security" -ForegroundColor Yellow
+    Write-Host "   Edit the generated .env in dist/ instead" -ForegroundColor Yellow
 }
 
 # Generate install-service.ps1
