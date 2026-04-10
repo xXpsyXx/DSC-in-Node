@@ -1,5 +1,5 @@
 param(
-    [string]$AppName = "DSCBackend",                                                     
+    [string]$AppName = "DSCBackend",
     [string]$NodeVersion = "18",
     [string]$Platform = "win-x64"
 )
@@ -24,7 +24,7 @@ $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
 if (!$npmCmd) {
     throw "npm is not installed or not in PATH"
 }
-Write-Host "✓ npm found: $(npm -v)" -ForegroundColor Green
+Write-Host "[OK] npm found: $(npm -v)" -ForegroundColor Green
 
 # Install dependencies if needed
 Write-Host "`n[2/7] Installing build dependencies..." -ForegroundColor Yellow
@@ -32,7 +32,7 @@ if (!(Test-Path (Join-Path $nodeModulesDir "esbuild"))) {
     Write-Host "Installing esbuild and pkg..." -ForegroundColor Cyan
     npm install --save-dev esbuild pkg
 }
-Write-Host "✓ Dependencies ready" -ForegroundColor Green
+Write-Host "[OK] Dependencies ready" -ForegroundColor Green
 
 # Clean dist directory
 Write-Host "`n[3/7] Cleaning dist directory..." -ForegroundColor Yellow
@@ -40,7 +40,7 @@ if (Test-Path $distDir) {
     Remove-Item -Path $distDir -Recurse -Force
 }
 New-Item -ItemType Directory -Path $distDir -Force | Out-Null
-Write-Host "✓ Cleaned dist directory" -ForegroundColor Green
+Write-Host "[OK] Cleaned dist directory" -ForegroundColor Green
 
 # Create esbuild bundle configuration
 Write-Host "`n[4/7] Bundling TypeScript with esbuild..." -ForegroundColor Yellow
@@ -73,10 +73,10 @@ try {
     }
   });
   
-  console.log('✓ Bundle created successfully');
+  console.log('[OK] Bundle created successfully');
   process.exit(0);
 } catch (error) {
-  console.error('✗ Bundle failed:', error.message);
+  console.error('[ERROR] Bundle failed:', error.message);
   process.exit(1);
 }
 "@
@@ -94,9 +94,9 @@ try {
     # Remove config file
     Remove-Item -Path $esbuildConfigFile -Force
     
-    Write-Host "✓ Bundle created: $bundleFile" -ForegroundColor Green
+    Write-Host "[OK] Bundle created: $bundleFile" -ForegroundColor Green
 } catch {
-    Write-Host "✗ Bundling failed: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Bundling failed: $_" -ForegroundColor Red
     throw $_
 }
 
@@ -111,7 +111,7 @@ require('./bundle.js');
 $pkgEntry = Join-Path $distDir "server.js"
 Set-Content -Path $pkgEntry -Value $pkgEntryPoint -Encoding UTF8
 
-Write-Host "✓ Entry point created" -ForegroundColor Green
+Write-Host "[OK] Entry point created" -ForegroundColor Green
 
 # Run pkg to create executable
 Write-Host "`n[6/7] Creating Windows executable with pkg..." -ForegroundColor Yellow
@@ -137,9 +137,9 @@ try {
         throw "Executable file was not created: $exeFile"
     }
     
-    Write-Host "✓ Executable created: $exeFile" -ForegroundColor Green
+    Write-Host "[OK] Executable created: $exeFile" -ForegroundColor Green
 } catch {
-    Write-Host "✗ Executable creation failed: $_" -ForegroundColor Red
+    Write-Host "[ERROR] Executable creation failed: $_" -ForegroundColor Red
     throw $_
 }
 
@@ -150,9 +150,9 @@ $pkcs11Source = Join-Path $nodeModulesDir "pkcs11js"
 if (Test-Path $pkcs11Source) {
     New-Item -ItemType Directory -Path $pkcs11ModuleDir -Force | Out-Null
     Copy-Item -Path "$pkcs11Source\*" -Destination $pkcs11ModuleDir -Recurse -Force
-    Write-Host "✓ pkcs11js copied to: $pkcs11ModuleDir" -ForegroundColor Green
+    Write-Host "[OK] pkcs11js copied to: $pkcs11ModuleDir" -ForegroundColor Green
 } else {
-    Write-Host "⚠ pkcs11js not found in node_modules, skipping..." -ForegroundColor Yellow
+    Write-Host "[WARN] pkcs11js not found in node_modules, skipping..." -ForegroundColor Yellow
 }
 
 # Create .env with sensible defaults (app works immediately!)
@@ -175,7 +175,7 @@ PKCS11_SLOT=
 
 $envFile = Join-Path $distDir ".env"
 Set-Content -Path $envFile -Value $envDefault -Encoding UTF8
-Write-Host "✓ Created .env with working defaults (app runs immediately!)" -ForegroundColor Green
+Write-Host "[OK] Created .env with working defaults (app runs immediately!)" -ForegroundColor Green
 
 # Also create .env.example for reference
 $envExample = @"
@@ -200,15 +200,15 @@ PKCS11_SLOT=
 
 $envExampleFile = Join-Path $distDir ".env.example"
 Set-Content -Path $envExampleFile -Value $envExample -Encoding UTF8
-Write-Host "✓ Created .env.example as reference" -ForegroundColor Gray
+Write-Host "[OK] Created .env.example as reference" -ForegroundColor Gray
 
-Write-Host "`n⚠️  PRODUCTION SECURITY: Change REQUEST_SIGNER_SECRET in .env!" -ForegroundColor Yellow
+Write-Host "`n[WARN] PRODUCTION SECURITY: Change REQUEST_SIGNER_SECRET in .env!" -ForegroundColor Yellow
 
 # Check if .env should be included in deployment
 if (Test-Path (Join-Path $repoRoot ".env")) {
-    Write-Host "`n⚠️  WARNING: .env file exists in source directory" -ForegroundColor Yellow
-    Write-Host "   Source .env is NOT copied to dist/ for security" -ForegroundColor Yellow
-    Write-Host "   Edit the generated .env in dist/ instead" -ForegroundColor Yellow
+    Write-Host "`n[WARN] WARNING: .env file exists in source directory" -ForegroundColor Yellow
+    Write-Host "      Source .env is NOT copied to dist/ for security" -ForegroundColor Yellow
+    Write-Host "      Edit the generated .env in dist/ instead" -ForegroundColor Yellow
 }
 
 # Generate install-service.ps1
@@ -249,16 +249,16 @@ Write-Host "DSC Backend Service Installation" -ForegroundColor Cyan
 Write-Host "================================" -ForegroundColor Cyan
 
 # Check if running as Administrator
-`$isAdmin = (`[Security.Principal.WindowsPrincipal`] `[Security.Principal.WindowsIdentity`]::GetCurrent()).IsInRole(`[Security.Principal.WindowsBuiltInRole`] "Administrator")
+`$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
 if (!`$isAdmin) {
-    Write-Host "✗ This script must be run as Administrator" -ForegroundColor Red
-    Write-Host "Please run: powershell -ExecutionPolicy Bypass -File install-service.ps1 -RunAs Administrator" -ForegroundColor Yellow
+    Write-Host "[ERROR] This script must be run as Administrator" -ForegroundColor Red
+    Write-Host "[INFO] Please run: powershell -ExecutionPolicy Bypass -File install-service.ps1 -RunAs Administrator" -ForegroundColor Yellow
     exit 1
 }
 
 # Check if NSSM exists
 if (!(Test-Path `$NssmPath)) {
-    Write-Host "✗ NSSM not found at: `$NssmPath" -ForegroundColor Red
+    Write-Host "[ERROR] NSSM not found at: `$NssmPath" -ForegroundColor Red
     Write-Host "Download NSSM from: https://nssm.cc/download" -ForegroundColor Yellow
     Write-Host "Extract to: `$(Split-Path `$NssmPath)" -ForegroundColor Yellow
     exit 1
@@ -272,19 +272,17 @@ if (!(Test-Path `$NssmPath)) {
 
 # SECURITY: Check for .env file (should be created manually on target machine)
 if (!(Test-Path `$envPath)) {
-    Write-Host "`n⚠️  SECURITY ALERT: .env file not found!" -ForegroundColor Red
-    Write-Host "    Cannot proceed without .env configuration" -ForegroundColor Red
-    Write-Host "`n    To create .env:" -ForegroundColor Yellow
+    Write-Host "`n[ALERT] SECURITY: .env file not found!" -ForegroundColor Red
+    Write-Host "        Cannot proceed without .env configuration" -ForegroundColor Red
+    Write-Host "`n[INFO] To create .env:" -ForegroundColor Yellow
     if (Test-Path `$envExamplePath) {
-        Write-Host "    1. Copy .env.example to .env:" -ForegroundColor Gray
-        Write-Host "       Copy-Item '.env.example' '.env'" -ForegroundColor Gray
-        Write-Host "    2. Edit .env with your settings:" -ForegroundColor Gray
-        Write-Host "       notepad .env" -ForegroundColor Gray
-    } else {
-        Write-Host "    1. Create .env file in this directory" -ForegroundColor Gray
-        Write-Host "    2. Add configuration variables (see documentation)" -ForegroundColor Gray
+        Write-Host "       1. Copy .env.example to .env:" -ForegroundColor Gray
+        Write-Host "          Copy-Item '.env.example' '.env'" -ForegroundColor Gray
+        Write-Host "       2. Edit .env and set your configuration:" -ForegroundColor Gray
+        Write-Host "          - REQUEST_SIGNER_SECRET (required)" -ForegroundColor Gray
+        Write-Host "          - PKCS11_MODULE_PATH if using USB tokens" -ForegroundColor Gray
+        Write-Host "       3. Run this script again" -ForegroundColor Gray
     }
-    Write-Host "`n    ⚠️  NEVER share or commit .env to version control!" -ForegroundColor Red
     exit 1
 }
 
@@ -311,7 +309,7 @@ if (`$existingService) {
 Write-Host "`nInstalling service..." -ForegroundColor Yellow
 & `$NssmPath install `$ServiceName `$exePath
 if (`$LASTEXITCODE -ne 0) {
-    Write-Host "✗ Failed to install service" -ForegroundColor Red
+    Write-Host "[ERROR] Failed to install service" -ForegroundColor Red
     exit 1
 }
 
@@ -349,23 +347,23 @@ if (Test-Path `$envPath) {
     `$acl.Access | ForEach-Object { `$acl.RemoveAccessRule(`$_) } | Out-Null
     
     # Grant ONLY SYSTEM (service account)
-    `$systemIdentity = `[System.Security.Principal.SecurityIdentifier`]::new('S-1-5-18')
+    `$systemIdentity = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18')
     
     `$system = New-Object System.Security.AccessControl.AccessRule (
         `$systemIdentity,
-        `[System.Security.AccessControl.FileSystemRights`]::FullControl,
-        `[System.Security.AccessControl.InheritanceFlags`]::None,
-        `[System.Security.AccessControl.PropagationFlags`]::None,
-        `[System.Security.AccessControl.AccessControlType`]::Allow
+        [System.Security.AccessControl.FileSystemRights]::FullControl,
+        [System.Security.AccessControl.InheritanceFlags]::None,
+        [System.Security.AccessControl.PropagationFlags]::None,
+        [System.Security.AccessControl.AccessControlType]::Allow
     )
     
     `$acl.AddAccessRule(`$system)
     Set-Acl `$envPath `$acl
     
-    Write-Host "✓ .env permissions set to SYSTEM ONLY (no other access)" -ForegroundColor Green
+    Write-Host "[OK] .env permissions set to SYSTEM ONLY (no other access)" -ForegroundColor Green
 } else {
-    Write-Host "⚠️  .env file not found!" -ForegroundColor Yellow
-    Write-Host "   Create .env from .env.example and fill in your settings" -ForegroundColor Yellow
+    Write-Host "[WARN] .env file not found!" -ForegroundColor Yellow
+    Write-Host "       Create .env from .env.example and fill in your settings" -ForegroundColor Yellow
 }
 
 # Start the service
@@ -376,13 +374,13 @@ Start-Service -Name `$ServiceName
 Start-Sleep -Seconds 2
 `$service = Get-Service -Name `$ServiceName
 if (`$service.Status -eq "Running") {
-    Write-Host "✓ Service installed and started successfully!" -ForegroundColor Green
+    Write-Host "[OK] Service installed and started successfully!" -ForegroundColor Green
     Write-Host "`nService Details:" -ForegroundColor Green
     Write-Host "  Status: `$(`$service.Status)" -ForegroundColor Green
     Write-Host "  Startup Type: `$(`$service.StartType)" -ForegroundColor Green
     Write-Host "  Logs: `$logDir" -ForegroundColor Green
 } else {
-    Write-Host "⚠ Service installed but not running" -ForegroundColor Yellow
+    Write-Host "[WARN] Service installed but not running" -ForegroundColor Yellow
     Write-Host "Check logs at: `$logDir" -ForegroundColor Yellow
 }
 
@@ -392,7 +390,7 @@ Write-Host "  nssm remove `$ServiceName confirm" -ForegroundColor Gray
 
 $installServiceFile = Join-Path $distDir "install-service.ps1"
 Set-Content -Path $installServiceFile -Value $installServiceScript -Encoding UTF8
-Write-Host "✓ Generated: $installServiceFile" -ForegroundColor Green
+Write-Host "[OK] Generated: $installServiceFile" -ForegroundColor Green
 
 # Generate README
 $readmeFile = Join-Path $distDir "README.md"
@@ -484,7 +482,7 @@ nssm remove DSCBackendService confirm
 "@
 
 Set-Content -Path $readmeFile -Value $readme -Encoding UTF8
-Write-Host "✓ Generated: $readmeFile" -ForegroundColor Green
+Write-Host "[OK] Generated: $readmeFile" -ForegroundColor Green
 
 # Summary
 Write-Host "`n================================" -ForegroundColor Green
@@ -506,4 +504,4 @@ Write-Host "3. (Optional) Download nssm.exe to the dist/ folder" -ForegroundColo
 Write-Host "4. (Optional) Run: powershell -ExecutionPolicy Bypass -File install-service.ps1" -ForegroundColor Gray
 Write-Host "5. Start the application or service" -ForegroundColor Gray
 
-Write-Host "`n✓ Ready for deployment!" -ForegroundColor Green
+Write-Host "`n[OK] Ready for deployment!" -ForegroundColor Green
