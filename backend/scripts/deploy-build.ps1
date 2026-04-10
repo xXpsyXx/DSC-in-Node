@@ -16,7 +16,7 @@ $srcDir = Join-Path $repoRoot "src"
 $nodeModulesDir = Join-Path $repoRoot "node_modules"
 $bundleFile = Join-Path $distDir "bundle.js"
 $exeFile = Join-Path $distDir "$AppName.exe"
-$pkcs11ModuleDir = Join-Path $distDir "node_modules" "pkcs11js"
+$pkcs11ModuleDir = Join-Path $distDir "node_modules\pkcs11js"
 
 # Check prerequisites
 Write-Host "`n[1/7] Checking prerequisites..." -ForegroundColor Yellow
