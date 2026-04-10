@@ -7,17 +7,19 @@ const path = require('path');
 const svc = new Service({
   name: 'DSC-Signer',
   script: path.join(__dirname, 'release', 'dsc-signer-win.exe'),
-  executable: path.join(__dirname, 'release', 'dsc-signer-win.exe')
+  executable: path.join(__dirname, 'release', 'dsc-signer-win.exe'),
 });
 
 // Listen for the "uninstall" event which fires if the uninstallation was successful
-svc.on('uninstall', function() {
+svc.on('uninstall', function () {
   console.log('✅ Service uninstalled successfully!');
-  console.log('📋 Service Name: DSC-Signer has been removed from Windows Services');
+  console.log(
+    '📋 Service Name: DSC-Signer has been removed from Windows Services',
+  );
 });
 
 // Listen for the "error" event
-svc.on('error', function(err) {
+svc.on('error', function (err) {
   console.error('❌ Error:', err.message);
   process.exit(1);
 });

@@ -25,7 +25,15 @@ try {
     platform: 'node',
     target: 'node18',
     format: 'cjs',
-    external: ['express', 'cors', 'dotenv', 'axios', 'formidable', 'pkcs11js', 'sharp'],
+    external: [
+      'express',
+      'cors',
+      'dotenv',
+      'axios',
+      'formidable',
+      'pkcs11js',
+      'sharp',
+    ],
   });
   console.log('✅ Compilation successful');
 } catch (error) {

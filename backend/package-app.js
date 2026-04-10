@@ -17,14 +17,14 @@ console.log('📦 Packaging application with pkg...\n');
 
 // PKG build targets
 const targets = [
-  'win',      // Windows executable
-  'linux',    // Linux executable
-  'macos'     // macOS executable
+  'win', // Windows executable
+  'linux', // Linux executable
+  'macos', // macOS executable
 ];
 
 targets.forEach((target) => {
   console.log(`🔨 Building for ${target}...`);
-  
+
   try {
     const cmd = `npx pkg ${outFile} --target node18-${target} --output "${releaseDir}/dsc-signer-${target === 'win' ? 'win.exe' : target === 'linux' ? 'linux' : 'macos'}"`;
     execSync(cmd, { stdio: 'inherit' });
@@ -37,7 +37,7 @@ targets.forEach((target) => {
 console.log(`\n📁 Executables created in: ${releaseDir}`);
 console.log('\n📋 Available files:');
 if (fs.existsSync(releaseDir)) {
-  fs.readdirSync(releaseDir).forEach(file => {
+  fs.readdirSync(releaseDir).forEach((file) => {
     const filePath = path.join(releaseDir, file);
     const stats = fs.statSync(filePath);
     const sizeMB = (stats.size / 1024 / 1024).toFixed(2);

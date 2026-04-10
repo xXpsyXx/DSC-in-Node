@@ -11,17 +11,17 @@ const svc = new Service({
   executable: path.join(__dirname, 'release', 'dsc-signer-win.exe'),
   env: {
     name: 'NODE_ENV',
-    value: 'production'
+    value: 'production',
   },
   wait: 2,
   grow: '.5',
   maxRestarts: 5,
   maxFailures: 5,
-  windowsVerboseLoggingMode: false
+  windowsVerboseLoggingMode: false,
 });
 
 // Listen for the "install" event, which fires if the installation was successful
-svc.on('install', function() {
+svc.on('install', function () {
   console.log('✅ Service installed successfully!');
   console.log('📋 Service Name: DSC-Signer');
   console.log('📍 Executable: ' + svc.executable);
@@ -33,12 +33,12 @@ svc.on('install', function() {
 });
 
 // Listen for the "alreadyinstalled" event, which fires if this service is already installed.
-svc.on('alreadyinstalled', function() {
+svc.on('alreadyinstalled', function () {
   console.log('⚠️  Service is already installed.');
 });
 
 // Listen for the "error" event
-svc.on('error', function(err) {
+svc.on('error', function (err) {
   console.error('❌ Error:', err.message);
   process.exit(1);
 });

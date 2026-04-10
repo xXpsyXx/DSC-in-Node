@@ -2,13 +2,13 @@
 
 ## ✅ What Was Built
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| Code Obfuscation | ✅ | TypeScript → Obfuscated JavaScript (50K+ lines) |
-| Windows Executable | ✅ | `dsc-signer-win.exe` (43.06 MB) |
-| Linux Executable | ✅ | `dsc-signer-linux` (51.29 MB) |
-| macOS Executable | ✅ | `dsc-signer-macos` (56.04 MB) |
-| Windows Service | ✅ | Ready for registration as "DSC-Signer" |
+| Component          | Status | Details                                         |
+| ------------------ | ------ | ----------------------------------------------- |
+| Code Obfuscation   | ✅     | TypeScript → Obfuscated JavaScript (50K+ lines) |
+| Windows Executable | ✅     | `dsc-signer-win.exe` (43.06 MB)                 |
+| Linux Executable   | ✅     | `dsc-signer-linux` (51.29 MB)                   |
+| macOS Executable   | ✅     | `dsc-signer-macos` (56.04 MB)                   |
+| Windows Service    | ✅     | Ready for registration as "DSC-Signer"          |
 
 ## 🎯 File Locations
 
@@ -70,17 +70,17 @@ curl http://localhost:3001/health
 ✅ Code obfuscation (impossible to read)  
 ✅ Standalone executable (no source code)  
 ✅ Auto-restart service (reliability)  
-✅ Request signing (security)  
+✅ Request signing (security)
 
 ## 🐛 Quick Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| Service won't start | Check Event Viewer (eventvwr.msc) |
-| Port already in use | Change PORT in .env file |
-| Permission denied | Run as Administrator |
-| Can't find executable | Built in `./release/` folder |
-| Need to update | Run `npm run full-build` again |
+| Problem               | Solution                          |
+| --------------------- | --------------------------------- |
+| Service won't start   | Check Event Viewer (eventvwr.msc) |
+| Port already in use   | Change PORT in .env file          |
+| Permission denied     | Run as Administrator              |
+| Can't find executable | Built in `./release/` folder      |
+| Need to update        | Run `npm run full-build` again    |
 
 ## 📊 Executable Sizes
 
@@ -108,6 +108,7 @@ sc delete DSC-Signer                # Delete (uninstall)
 ## 📖 Documentation Files
 
 Created:
+
 - `BUILD_DEPLOYMENT_GUIDE.md` - Full build guide
 - `WINDOWS_SERVICE_DEPLOYMENT.md` - Service deployment steps
 - `COMPLETE_BUILD_WORKFLOW.md` - Architecture & workflow
@@ -116,17 +117,20 @@ Created:
 ## 💡 Key Points
 
 ✨ **All-in-One Executable**
+
 - No Node.js installation needed on target machine
 - No external dependencies
 - Single `.exe` file (like any Windows application)
 
 🔒 **Security**
+
 - Code completely obfuscated (cannot read source)
 - Debug protection enabled
 - String encoding enabled
 - Self-defending code enabled
 
 ⚙️ **Service Features**
+
 - Auto-start on Windows boot
 - Auto-restart on crash (5 attempts)
 - Integrated with Windows Event logging
@@ -134,12 +138,12 @@ Created:
 
 ## 🎓 What Each Tool Does
 
-| Tool | What It Does |
-|------|--------------|
-| **esbuild** | Compiles TypeScript → JavaScript (super fast) |
-| **javascript-obfuscator** | Makes JavaScript code unreadable |
-| **pkg** | Bundles code + Node.js into .exe |
-| **node-windows** | Registers .exe as Windows Service |
+| Tool                      | What It Does                                  |
+| ------------------------- | --------------------------------------------- |
+| **esbuild**               | Compiles TypeScript → JavaScript (super fast) |
+| **javascript-obfuscator** | Makes JavaScript code unreadable              |
+| **pkg**                   | Bundles code + Node.js into .exe              |
+| **node-windows**          | Registers .exe as Windows Service             |
 
 ## 📞 Need Help?
 

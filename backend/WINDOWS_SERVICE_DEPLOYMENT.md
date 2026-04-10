@@ -1,6 +1,7 @@
 # DSC Signer - Windows Service Deployment Checklist
 
 ## ✅ Build Status
+
 - [x] Code obfuscated successfully (`dist/server.js` - 50K+ lines)
 - [x] Windows executable created: `dsc-signer-win.exe` (43.06 MB)
 - [x] Linux executable created: `dsc-signer-linux` (51.29 MB)
@@ -9,6 +10,7 @@
 ## 📦 Package Contents
 
 ### Windows Service (`dsc-signer-win.exe`)
+
 ```
 Type: PE32+ executable (x86-64, console mode)
 Size: 43.06 MB
@@ -19,6 +21,7 @@ Ready to run: No external dependencies required
 ### Deployment Steps (Windows)
 
 #### 1. **Prepare Files**
+
 ```bash
 # Copy the executable to target location
 Copy-Item .\release\dsc-signer-win.exe -Destination "C:\Program Files\DSC-Signer\"
@@ -26,7 +29,9 @@ Copy-Item .\src\.env.example -Destination "C:\Program Files\DSC-Signer\.env"
 ```
 
 #### 2. **Configure Service**
+
 Edit `C:\Program Files\DSC-Signer\.env`:
+
 ```env
 PORT=3001
 NODE_ENV=production
@@ -35,6 +40,7 @@ LOG_LEVEL=info
 ```
 
 #### 3. **Install as Windows Service** (Admin required)
+
 ```powershell
 # Run as Administrator
 cd C:\Program Files\DSC-Signer
@@ -42,6 +48,7 @@ node service-install.js
 ```
 
 Expected output:
+
 ```
 ✅ Service installed successfully!
 📋 Service Name: DSC-Signer
@@ -50,6 +57,7 @@ Expected output:
 ```
 
 #### 4. **Verify Installation**
+
 ```powershell
 # Check service properties
 Get-Service | Where-Object {$_.Name -eq 'DSC-Signer'}
@@ -59,6 +67,7 @@ sc query DSC-Signer
 ```
 
 #### 5. **Start the Service**
+
 ```powershell
 # Manual start
 net start DSC-Signer
@@ -70,6 +79,7 @@ services.msc
 ```
 
 #### 6. **Test Connectivity**
+
 ```bash
 # Test the API endpoint
 curl http://localhost:3001/health
@@ -102,7 +112,9 @@ services.msc
 ## 🛠️ Troubleshooting
 
 ### Service Won't Start
+
 1. **Check Event Viewer**
+
    ```powershell
    eventvwr.msc
    # Navigate to: Windows Logs > Application
@@ -121,11 +133,13 @@ services.msc
    ```
 
 ### Certificate/USB Token Issues
+
 - Verify Hypersecu USB token is connected
 - Check Windows Device Manager for driver issues
 - Test with the frontend application first
 
 ### Permission Denied
+
 - Run Command Prompt/PowerShell **as Administrator**
 - Check file permissions: right-click → Properties → Security
 - Account running service needs read access to executable and config
@@ -133,6 +147,7 @@ services.msc
 ## 📊 Monitoring
 
 ### Windows Event Viewer
+
 ```powershell
 # Open Event Viewer
 eventvwr.msc
@@ -142,6 +157,7 @@ Get-EventLog -LogName Application -Source "DSC-Signer" -Newest 20
 ```
 
 ### Performance Monitoring
+
 ```powershell
 # Monitor process in Task Manager
 Get-Process | Where-Object {$_.ProcessName -like "*dsc-signer*"}
@@ -153,17 +169,21 @@ Get-Process | Where-Object {$_.Name -like "*dsc-signer*"} | Select-Object Name, 
 ## 🔄 Updates & Maintenance
 
 ### Updating the Application
+
 1. **Stop the service**
+
    ```powershell
    net stop DSC-Signer
    ```
 
 2. **Build new version**
+
    ```bash
    npm run full-build
    ```
 
 3. **Replace executable**
+
    ```powershell
    Copy-Item .\release\dsc-signer-win.exe -Destination "C:\Program Files\DSC-Signer\" -Force
    ```
@@ -174,6 +194,7 @@ Get-Process | Where-Object {$_.Name -like "*dsc-signer*"} | Select-Object Name, 
    ```
 
 ### Uninstalling Service
+
 ```powershell
 # Run as Administrator
 cd "C:\Program Files\DSC-Signer"
@@ -194,6 +215,7 @@ node service-uninstall.js
 ## 📋 Configuration Reference
 
 ### Environment Variables (.env)
+
 ```env
 # Core
 PORT=3001
@@ -209,6 +231,7 @@ LOG_LEVEL=info
 ```
 
 ### Firewall Rules (Windows)
+
 ```powershell
 # Allow inbound on port 3001
 netsh advfirewall firewall add rule name="DSC-Signer" dir=in action=allow protocol=tcp localport=3001 profile=public
@@ -220,6 +243,7 @@ netsh advfirewall firewall delete rule name="DSC-Signer"
 ## 📞 Support
 
 **For issues:**
+
 1. Check Windows Event Viewer (eventvwr.msc)
 2. Review error logs for specific error codes
 3. Verify service status: `sc query DSC-Signer`
