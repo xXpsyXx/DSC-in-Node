@@ -48,12 +48,10 @@ Write-Host "`n[4/7] Bundling TypeScript with esbuild..." -ForegroundColor Yellow
 $esbuildConfig = @"
 import * as esbuild from 'esbuild';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '..');
 
 try {
+  const repoRoot = process.cwd();
+  
   const result = await esbuild.build({
     entryPoints: [path.join(repoRoot, 'src', 'server.ts')],
     bundle: true,
@@ -122,7 +120,7 @@ try {
         $pkgEntry,
         "--target", "node$NodeVersion-$Platform",
         "--output", $exeFile,
-        "--compress", "GzipCompressed",
+        "--compress", "Gzip",
         "--quiet"
     )
     
