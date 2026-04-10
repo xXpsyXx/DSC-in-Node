@@ -249,7 +249,7 @@ Write-Host "DSC Backend Service Installation" -ForegroundColor Cyan
 Write-Host "================================" -ForegroundColor Cyan
 
 # Check if running as Administrator
-`$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+`$isAdmin = (`[Security.Principal.WindowsPrincipal`] `[Security.Principal.WindowsIdentity`]::GetCurrent()).IsInRole(`[Security.Principal.WindowsBuiltInRole`] "Administrator")
 if (!`$isAdmin) {
     Write-Host "✗ This script must be run as Administrator" -ForegroundColor Red
     Write-Host "Please run: powershell -ExecutionPolicy Bypass -File install-service.ps1 -RunAs Administrator" -ForegroundColor Yellow
@@ -264,7 +264,7 @@ if (!(Test-Path `$NssmPath)) {
     exit 1
 }
 
-$scriptDir = `$PSScriptRoot
+`$scriptDir = `$PSScriptRoot
 `$exePath = Join-Path `$scriptDir "DSCBackend.exe"
 `$logDir = Join-Path `$scriptDir "logs"
 `$envPath = Join-Path `$scriptDir ".env"
@@ -349,14 +349,14 @@ if (Test-Path `$envPath) {
     `$acl.Access | ForEach-Object { `$acl.RemoveAccessRule(`$_) } | Out-Null
     
     # Grant ONLY SYSTEM (service account)
-    `$systemIdentity = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18')
+    `$systemIdentity = `[System.Security.Principal.SecurityIdentifier`]::new('S-1-5-18')
     
     `$system = New-Object System.Security.AccessControl.AccessRule (
         `$systemIdentity,
-        [System.Security.AccessControl.FileSystemRights]::FullControl,
-        [System.Security.AccessControl.InheritanceFlags]::None,
-        [System.Security.AccessControl.PropagationFlags]::None,
-        [System.Security.AccessControl.AccessControlType]::Allow
+        `[System.Security.AccessControl.FileSystemRights`]::FullControl,
+        `[System.Security.AccessControl.InheritanceFlags`]::None,
+        `[System.Security.AccessControl.PropagationFlags`]::None,
+        `[System.Security.AccessControl.AccessControlType`]::Allow
     )
     
     `$acl.AddAccessRule(`$system)
