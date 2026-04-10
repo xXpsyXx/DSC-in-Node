@@ -49,8 +49,7 @@ New-Item -ItemType Directory -Path $serviceWrapperRoot -Force | Out-Null
 $requiredItems = @(
     "dist",
     "package.json",
-    "package-lock.json",
-    ".env"
+    "package-lock.json"
 )
 
 foreach ($item in $requiredItems) {
@@ -62,6 +61,38 @@ foreach ($item in $requiredItems) {
     $destinationPath = Join-Path $appRoot $item
     Copy-Item -Path $sourcePath -Destination $destinationPath -Recurse -Force
 }
+
+# Create .env.example template (do NOT include .env for security!)
+Write-Host "Creating .env.example template..."
+$envTemplate = @"
+# DSC Backend Configuration
+# IMPORTANT: Rename this to .env and fill in your actual values
+# WARNING: Keep .env PRIVATE - contains sensitive configuration
+
+PORT=5000
+NODE_ENV=production
+LOG_LEVEL=info
+
+# API Configuration
+REQUEST_SIGNER_SECRET=your-secret-key-here-change-this
+API_TIMEOUT=30000
+
+# PKCS#11 Configuration (if using USB tokens)
+PKCS11_MODULE_PATH=
+PKCS11_SLOT=
+
+# Optional: Azure/Cloud settings
+# AZURE_KEY_VAULT_URL=
+# AZURE_CLIENT_ID=
+# AZURE_CLIENT_SECRET=
+"@
+
+$envExamplePath = Join-Path $appRoot ".env.example"
+Set-Content -Path $envExamplePath -Value $envTemplate -Encoding UTF8
+
+Write-Host "⚠️  SECURITY NOTE: .env file is NOT included in installer" -ForegroundColor Yellow
+Write-Host "    Installer includes .env.example template instead" -ForegroundColor Yellow
+Write-Host "    User must create .env on the target machine with their values" -ForegroundColor Yellow
 
 if (!(Test-Path $actionsSource)) {
     throw "Installer action scripts folder not found: $actionsSource"

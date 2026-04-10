@@ -11,6 +11,7 @@ Thumbs.db
 .directory
 
 # Environment files (keep local, not in repo)
+.env
 .env.local
 .env.*.local
 
