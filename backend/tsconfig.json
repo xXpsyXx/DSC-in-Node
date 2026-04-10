@@ -11,6 +11,9 @@
     "target": "esnext",
     "lib": ["esnext"],
     "types": ["node"],
+    "moduleResolution": "nodenext",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     // For nodejs:
     // "lib": ["esnext"],
     // and npm install -D @types/node

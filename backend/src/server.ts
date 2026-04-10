@@ -4,6 +4,7 @@ import signRoutes from './routes/sign.route.ts';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { initializeJwtService } from './middleware/jwt-verify.middleware.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,7 +74,7 @@ const registerRoutes = (app: express.Express): void => {
  * @since 1.0.0
  */
 const registerHealthCheckEndpoint = (app: express.Express): void => {
-  app.get('/health', (_, res) => {
+  app.get('/health', (_: any, res: any) => {
     res.send('Helper app running');
   });
 };
@@ -135,13 +136,16 @@ const configureServerErrorHandler = (server: any): void => {
  * Initialize and start the Express server.
  * Sets up all middleware, routes, and error handlers, then listens on the configured port.
  * @access public
- * @returns {void}
- * @since 1.0.0
+ * @returns {Promise<void>}
+ * @since 2.0.0
  * @author PDFSignatureApp
  */
-const startServer = (): void => {
+const startServer = async (): Promise<void> => {
   // Load environment variables
   loadEnvironmentVariables();
+
+  // Initialize JWT service (fetches public keys from backend if enabled)
+  await initializeJwtService();
 
   // Create Express application
   const app = express();
