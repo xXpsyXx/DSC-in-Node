@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import signRoutes from './routes/sign.route';
+import signRoutes from './routes/sign.route.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initializeJwtService } from './middleware/jwt-verify.middleware';
+import { initializeJwtService } from './middleware/jwt-verify.middleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

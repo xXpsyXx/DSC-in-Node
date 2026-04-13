@@ -131,7 +131,7 @@ export class SignerService {
         expiryDate,
         message: `Certificate has expired (expired ${Math.abs(daysRemaining)} days ago on ${expiryDate.toDateString()})`,
       };
-    } else if (daysRemaining < 15) {
+    } else if (daysRemaining < 10) {
       return {
         status: 'critical',
         daysRemaining,

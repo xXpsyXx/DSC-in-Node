@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
-import { getPublicKeyService } from '../services/public-key.service';
+import { getPublicKeyService } from '../services/public-key.service.js';
 
 /**
  * JWT payload interface for authorized signing requests.

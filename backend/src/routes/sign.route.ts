@@ -6,11 +6,11 @@ import {
   certStatusHandler,
   getSupportedDriversHandler,
   autoDetectTokenHandler,
-} from '../controllers/sign.controller';
+} from '../controllers/sign.controller.js';
 import {
   verifyJwtToken,
   validateSigningAuthorization,
-} from '../middleware/jwt-verify.middleware';
+} from '../middleware/jwt-verify.middleware.js';
 
 /**
  * Create and configure the sign API router.

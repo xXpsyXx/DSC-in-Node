@@ -1,10 +1,10 @@
 import type { Request, Response } from 'express';
-import { SignerService } from '../services/sign.service';
-import { HashService } from '../services/hash.service';
-import { VerifyService } from '../services/verify.service';
-import { PdfSignerService } from '../services/pdf-signer.service';
-import { Pkcs7SignerService } from '../services/pkcs7-signer.service';
-import { TsaService } from '../services/tsa.service';
+import { SignerService } from '../services/sign.service.js';
+import { HashService } from '../services/hash.service.js';
+import { VerifyService } from '../services/verify.service.js';
+import { PdfSignerService } from '../services/pdf-signer.service.js';
+import { Pkcs7SignerService } from '../services/pkcs7-signer.service.js';
+import { TsaService } from '../services/tsa.service.js';
 import { IncomingForm } from 'formidable';
 import * as fs from 'fs';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -16,7 +16,7 @@ import {
   isUsbTokenMissingErrorMessage,
   isUsbTokenErrorMessage,
   getHardwareErrorResponse,
-} from '../utils/error-handlers';
+} from '../utils/error-handlers.js';
 
 let verifyService: VerifyService | null = null;
 
