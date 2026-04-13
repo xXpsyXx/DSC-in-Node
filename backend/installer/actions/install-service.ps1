@@ -52,6 +52,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Failed to install service with WinSW. Exit code: $LASTEXITCODE"
 }
 
+# Set service to start automatically on system restart
+Set-Service -Name $serviceName -StartupType Automatic | Out-Null
+
 & $serviceExe start | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to start service with WinSW. Exit code: $LASTEXITCODE"
