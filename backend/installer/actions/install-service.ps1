@@ -18,8 +18,7 @@ if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
 
 $resolvedInstallRoot = (Resolve-Path $InstallRoot).Path
 $nodeExe = Join-Path $resolvedInstallRoot "runtime\node.exe"
-$tsxCli = Join-Path $resolvedInstallRoot "app\node_modules\tsx\dist\cli.mjs"
-$serverScript = Join-Path $resolvedInstallRoot "app\src\server.ts"
+$serverScript = Join-Path $resolvedInstallRoot "app\src\server.js"
 $serviceName = "DSCBackendService"
 $serviceExe = Join-Path $resolvedInstallRoot "$serviceName.exe"
 $serviceConfig = Join-Path $resolvedInstallRoot "$serviceName.xml"
@@ -27,9 +26,6 @@ $serviceLogDir = Join-Path $resolvedInstallRoot "logs"
 
 if (!(Test-Path $nodeExe)) {
     throw "Node runtime not found at $nodeExe"
-}
-if (!(Test-Path $tsxCli)) {
-    throw "tsx runtime not found at $tsxCli"
 }
 if (!(Test-Path $serverScript)) {
     throw "Server entry file not found at $serverScript"
