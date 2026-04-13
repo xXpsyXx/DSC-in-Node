@@ -1,13 +1,20 @@
 <service>
   <id>DSCBackendService</id>
   <name>DSC Backend Service</name>
-  <description>DSC PDF signing backend service</description>
+  <description>DSC PDF signing backend service - runs under current user for USB token access</description>
 
   <executable>%BASE%\runtime\node.exe</executable>
   <arguments>"%BASE%\app\src\server.js"</arguments>
   <workingdirectory>%BASE%\app</workingdirectory>
 
-  <startmode>Automatic</startmode>
+  <!-- IMPORTANT: Service must run under logged-in user account to access USB token -->
+  <!-- This allows PKCS#11 library to communicate with USB hardware -->
+  <serviceaccount>
+    <domain>.</domain>
+    <user>%LocalUserName%</user>
+  </serviceaccount>
+
+  <startmode>Manual</startmode>
   <stoptimeout>15 sec</stoptimeout>
 
   <onfailure action="restart" delay="10 sec" />
