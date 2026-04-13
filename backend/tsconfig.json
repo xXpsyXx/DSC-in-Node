@@ -18,9 +18,18 @@
 
     "skipLibCheck": true,
 
-    "noEmit": true,
-    "allowImportingTsExtensions": true
+    "outDir": "./dist",
+    "rootDir": "./src"
   },
+
+  "include": ["src"],
+
+  "exclude": [
+    "node_modules",
+    "dist",
+    "installer"
+  ],
+
   "ts-node": {
     "esm": true,
     "experimentalEsm": true,
