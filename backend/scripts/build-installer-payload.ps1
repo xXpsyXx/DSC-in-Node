@@ -36,7 +36,7 @@ New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $serviceWrapperRoot -Force | Out-Null
 
 $requiredItems = @(
-    "src",
+    "dist",
     "package.json",
     "package-lock.json",
     ".env"
@@ -48,7 +48,7 @@ foreach ($item in $requiredItems) {
         throw "Missing required item for installer payload: $sourcePath"
     }
 
-    $destinationPath = Join-Path $appRoot $item
+    $destinationPath = if ($item -eq "dist") { Join-Path $appRoot "src" } else { Join-Path $appRoot $item }
     Copy-Item -Path $sourcePath -Destination $destinationPath -Recurse -Force
 }
 
