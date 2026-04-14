@@ -90,7 +90,7 @@ export class SignerService {
 
   /**
    * Check certificate expiration status and validity window.
-   * Categorizes certificate status as expired, critical (< 15 days), warning (< 30 days), or valid.
+   * Categorizes certificate status as expired, critical (< 10 days), warning (< 30 days), or valid.
    * @access public
    * @returns {object} Certificate status object with status, daysRemaining, expiryDate, and message
    * @returns {string} returns.status One of: 'expired', 'critical', 'warning', 'valid'
@@ -131,7 +131,7 @@ export class SignerService {
         expiryDate,
         message: `Certificate has expired (expired ${Math.abs(daysRemaining)} days ago on ${expiryDate.toDateString()})`,
       };
-    } else if (daysRemaining < 15) {
+    } else if (daysRemaining < 10) {
       return {
         status: 'critical',
         daysRemaining,

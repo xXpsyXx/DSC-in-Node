@@ -797,7 +797,7 @@ Request lacks X-Request-Signature header
 **Certificate Critical:**
 
 ```
-Certificate expiring in < 15 days
+Certificate expiring in < 10 days
 → 403 Forbidden: "Certificate must be renewed before signing"
 ```
 
