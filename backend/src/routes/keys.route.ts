@@ -2,8 +2,6 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import axios from 'axios';
 
-let cachedPublicKey: string | null = null;
-
 /**
  * Get the backend API URL from environment.
  * @returns {string} Backend API base URL
@@ -13,11 +11,11 @@ const getBackendUrl = (): string => {
 };
 
 /**
- * Fetch and cache the RSA public key from the backend.
- * Called on agent startup and available for JWT verification.
+ * Fetch the RSA public key from the backend.
+ * Called on every sign request to always use the latest key.
  * @returns {Promise<string>} The RSA public key PEM string
  */
-export const fetchAndCachePublicKey = async (): Promise<string> => {
+export const getPublicKey = async (): Promise<string> => {
   const backendUrl = getBackendUrl();
   const response = await axios.get(
     `${backendUrl}/digital-signature/public-key`,
@@ -25,18 +23,8 @@ export const fetchAndCachePublicKey = async (): Promise<string> => {
       timeout: 5000,
     },
   );
-  cachedPublicKey = response.data.data.publicKey;
-  console.log('[keys] Public key fetched and cached from backend');
-  return cachedPublicKey!;
-};
-
-/**
- * Get the cached public key. Fetches from backend if not yet cached.
- * @returns {Promise<string>} The RSA public key PEM string
- */
-export const getPublicKey = async (): Promise<string> => {
-  if (cachedPublicKey) return cachedPublicKey;
-  return fetchAndCachePublicKey();
+  console.log('[keys] Public key fetched from backend');
+  return response.data.data.publicKey;
 };
 
 /**

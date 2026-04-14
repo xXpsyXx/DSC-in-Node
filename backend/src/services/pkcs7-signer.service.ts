@@ -126,7 +126,7 @@ export class Pkcs7SignerService {
     // Certificates [0] IMPLICIT - parse the certificate DER
     const certAsn1 = forge.asn1.fromDer(certDer.toString('binary'));
     const certificates = forge.asn1.create(
-      (forge.asn1.Class as any).CONTEXT ?? 2,
+      forge.asn1.Class.CONTEXT_SPECIFIC,
       0,
       true,
       [certAsn1],
@@ -155,7 +155,25 @@ export class Pkcs7SignerService {
       [version, digestAlgorithms, contentInfo, certificates, signerInfos],
     );
 
-    return signedData;
+    // Wrap in ContentInfo: SEQUENCE { contentType OID, [0] EXPLICIT content }
+    const contentInfoWrapper = forge.asn1.create(
+      forge.asn1.Class.UNIVERSAL,
+      forge.asn1.Type.SEQUENCE,
+      true,
+      [
+        forge.asn1.create(
+          forge.asn1.Class.UNIVERSAL,
+          forge.asn1.Type.OID,
+          false,
+          '1.2.840.113549.1.7.2', // id-signedData
+        ),
+        forge.asn1.create(forge.asn1.Class.CONTEXT_SPECIFIC, 0, true, [
+          signedData,
+        ]),
+      ],
+    );
+
+    return contentInfoWrapper;
   }
 
   /**
@@ -219,7 +237,7 @@ export class Pkcs7SignerService {
     // AuthenticatedAttributes [0] IMPLICIT
     const dataHashBuffer = Buffer.from(dataHashHex, 'hex');
     const authAttrs = forge.asn1.create(
-      (forge.asn1.Class as any).CONTEXT ?? 2,
+      forge.asn1.Class.CONTEXT_SPECIFIC,
       0,
       true,
       [

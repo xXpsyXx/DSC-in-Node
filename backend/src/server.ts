@@ -3,7 +3,6 @@ import cors from 'cors';
 
 import signRoutes from './routes/sign.route.ts';
 import keysRoutes from './routes/keys.route.ts';
-import { fetchAndCachePublicKey } from './routes/keys.route.ts';
 
 import dotenv from 'dotenv';
 import path from 'path';
@@ -165,14 +164,6 @@ const startServer = (): void => {
   // Start listening
   const server = app.listen(port, () => {
     console.log(`DSC Helper running on http://localhost:${port}`);
-
-    // Auto-fetch public key from backend on startup
-    fetchAndCachePublicKey().catch((err) => {
-      console.warn(
-        '[server] Could not fetch public key on startup (will retry on first request):',
-        err.message,
-      );
-    });
   });
 
   // Configure error handlers
