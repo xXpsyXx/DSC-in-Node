@@ -26,7 +26,7 @@ Source: "payload\installer-actions\*"; DestDir: "{app}\installer-actions"; Flags
 Source: "payload\service-wrapper\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installer-actions\install-service.ps1"" -InstallRoot ""{app}"""; StatusMsg: "Installing and starting backend service..."; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installer-actions\install-service.ps1"" -InstallRoot ""{app}"""; StatusMsg: "Installing and starting backend service..."; Flags: waituntilterminated
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installer-actions\uninstall-service.ps1"""; Flags: runhidden waituntilterminated

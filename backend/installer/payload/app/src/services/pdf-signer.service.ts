@@ -4,6 +4,8 @@ export interface DetachedSignatureBlock {
   signerName: string;
   signReason: string;
   signDate: string;
+  certificatePem?: string;
+  serverHmac?: string;
   blockStart: number;
   blockEndExclusive: number;
 }
@@ -45,6 +47,8 @@ export class PdfSignerService {
       signerName: string;
       reason?: string;
       signedAt?: Date;
+      certificatePem?: string;
+      serverHmac?: string;
     },
   ): Buffer {
     const signatureHex = options.signatureHex.replace(/[^0-9a-fA-F]/g, '');
@@ -67,7 +71,7 @@ export class PdfSignerService {
     }
 
     const signatureObjectNumber = maxObjectNumber + 1;
-    const signatureBlock = [
+    const blockLines = [
       '',
       '%%DSC_SIG_BLOCK_BEGIN',
       `${signatureObjectNumber} 0 obj`,
@@ -80,12 +84,28 @@ export class PdfSignerService {
       `/M (${signDate})`,
       `/DSCHash (${hashHex})`,
       `/Contents <${signatureHex}>`,
+    ];
+
+    // Embed certificate in base64 if provided
+    if (options.certificatePem) {
+      const certBase64 = Buffer.from(options.certificatePem).toString('base64');
+      blockLines.push(`/DSCCertificate (${certBase64})`);
+    }
+
+    // Embed server HMAC if provided (proves signature came from authorized server)
+    if (options.serverHmac) {
+      blockLines.push(`/DSCServerHmac (${options.serverHmac})`);
+    }
+
+    blockLines.push(
       '>>',
       'endobj',
       `%%DSC_SIG_REF /Sig ${signatureObjectNumber} 0 R`,
       '%%DSC_SIG_BLOCK_END',
       '',
-    ].join('\n');
+    );
+
+    const signatureBlock = blockLines.join('\n');
 
     return Buffer.concat([pdfBytes, Buffer.from(signatureBlock, 'utf8')]);
   }
@@ -133,8 +153,24 @@ export class PdfSignerService {
     const nameMatch = blockText.match(/\/Name\s*\(([^)]*)\)/);
     const reasonMatch = blockText.match(/\/Reason\s*\(([^)]*)\)/);
     const dateMatch = blockText.match(/\/M\s*\(([^)]*)\)/);
+    const certMatch = blockText.match(
+      /\/DSCCertificate\s*\(([A-Za-z0-9+/=]+)\)/,
+    );
+    const hmacMatch = blockText.match(/\/DSCServerHmac\s*\(([A-Fa-f0-9]+)\)/);
 
-    return {
+    let certificatePem: string | undefined;
+    if (certMatch?.[1]) {
+      try {
+        certificatePem = Buffer.from(certMatch[1], 'base64').toString('utf-8');
+      } catch (e) {
+        console.warn(
+          '[PdfSignerService] Failed to decode embedded certificate:',
+          e,
+        );
+      }
+    }
+
+    const result: DetachedSignatureBlock = {
       signatureHex,
       hashHex: (hashMatch?.[1] || '').toLowerCase(),
       signerName: this.decodePdfLiteral(nameMatch?.[1] || 'Unknown'),
@@ -143,6 +179,16 @@ export class PdfSignerService {
       blockStart,
       blockEndExclusive,
     };
+
+    if (certificatePem) {
+      result.certificatePem = certificatePem;
+    }
+
+    if (hmacMatch?.[1]) {
+      result.serverHmac = hmacMatch[1];
+    }
+
+    return result;
   }
 
   static removeDetachedSignatureBlock(

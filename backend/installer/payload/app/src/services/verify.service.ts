@@ -3,10 +3,27 @@ import os from 'os';
 import * as pkcs11js from 'pkcs11js';
 
 export class VerifyService {
-  private publicKey: forge.pki.PublicKey;
+  private publicKey: forge.pki.PublicKey | null;
 
-  constructor() {
-    this.publicKey = this.loadPublicKeyFromPkcs11();
+  constructor(certificatePem?: string) {
+    if (certificatePem) {
+      // Use provided certificate instead of loading from token
+      this.publicKey = this.loadPublicKeyFromPem(certificatePem);
+    } else {
+      // Fall back to loading from USB token
+      this.publicKey = this.loadPublicKeyFromPkcs11();
+    }
+  }
+
+  private loadPublicKeyFromPem(certificatePem: string): forge.pki.PublicKey {
+    try {
+      const cert = forge.pki.certificateFromPem(certificatePem);
+      return cert.publicKey;
+    } catch (error) {
+      throw new Error(
+        `Failed to load certificate from PEM: ${(error as Error).message}`,
+      );
+    }
   }
 
   private loadPublicKeyFromPkcs11(): forge.pki.PublicKey {
@@ -170,6 +187,11 @@ export class VerifyService {
   }
 
   verify(hashHex: string, signatureBase64: string): boolean {
+    if (!this.publicKey) {
+      console.error('[VerifyService] No public key available for verification');
+      return false;
+    }
+
     try {
       // Convert hex hash to binary bytes
       const hashBytes = forge.util.hexToBytes(hashHex);
@@ -183,6 +205,31 @@ export class VerifyService {
       return (this.publicKey as any).verify(md.digest().bytes(), signature);
     } catch (error) {
       console.error('[VerifyService] Error:', error);
+      return false;
+    }
+  }
+
+  static verifyWithCertificate(
+    hashHex: string,
+    signatureBase64: string,
+    certificatePem: string,
+  ): boolean {
+    try {
+      const cert = forge.pki.certificateFromPem(certificatePem);
+      const publicKey = cert.publicKey;
+
+      // Convert hex hash to binary bytes
+      const hashBytes = forge.util.hexToBytes(hashHex);
+
+      // Recreate the message digest with the hash
+      const md = forge.md.sha256.create();
+      md.update(hashBytes);
+
+      const signature = forge.util.decode64(signatureBase64);
+
+      return (publicKey as any).verify(md.digest().bytes(), signature);
+    } catch (error) {
+      console.error('[VerifyService] Error during verification:', error);
       return false;
     }
   }

@@ -7,6 +7,7 @@
   <arguments>"%BASE%\app\node_modules\tsx\dist\cli.mjs" "%BASE%\app\src\server.ts"</arguments>
   <workingdirectory>%BASE%\app</workingdirectory>
 
+  <startmode>Automatic</startmode>
   <stoptimeout>15 sec</stoptimeout>
 
   <onfailure action="restart" delay="10 sec" />
