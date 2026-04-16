@@ -36,8 +36,7 @@ $resolvedInstallRoot = (Resolve-Path $InstallRoot).Path
 Add-Content -Path $logFile -Value "[$timestamp] Install root: $resolvedInstallRoot"
 
 $nodeExe = Join-Path $resolvedInstallRoot "runtime\node.exe"
-$tsxCli = Join-Path $resolvedInstallRoot "app\node_modules\tsx\dist\cli.mjs"
-$serverScript = Join-Path $resolvedInstallRoot "app\src\server.ts"
+$serverScript = Join-Path $resolvedInstallRoot "app\dist\server.js"
 $serviceName = "DSCBackendService"
 $serviceExe = Join-Path $resolvedInstallRoot "$serviceName.exe"
 $serviceConfig = Join-Path $resolvedInstallRoot "$serviceName.xml"
@@ -50,15 +49,10 @@ try {
     }
     Add-Content -Path $logFile -Value "[$timestamp] Node runtime found"
     
-    if (!(Test-Path $tsxCli)) {
-        throw "tsx runtime not found at $tsxCli"
-    }
-    Add-Content -Path $logFile -Value "[$timestamp] tsx CLI found"
-    
     if (!(Test-Path $serverScript)) {
         throw "Server entry file not found at $serverScript"
     }
-    Add-Content -Path $logFile -Value "[$timestamp] Server script found"
+    Add-Content -Path $logFile -Value "[$timestamp] Server script (dist) found"
     
     if (!(Test-Path $serviceExe)) {
         throw "Service wrapper executable not found at $serviceExe"

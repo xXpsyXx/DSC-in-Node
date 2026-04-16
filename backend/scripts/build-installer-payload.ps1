@@ -26,6 +26,14 @@ $nodeZipPath = Join-Path $payloadRoot $nodeZipName
 $nodeExtractedDir = Join-Path $payloadRoot "node-$normalizedNodeVersion-win-$Arch"
 
 Write-Host "Preparing installer payload at $payloadRoot"
+## Build and obfuscate compiled JS into `dist`
+Push-Location $repoRoot
+try {
+    Write-Host "Building TypeScript and obfuscating compiled JS..."
+    npm run build:obfuscate
+} finally {
+    Pop-Location
+}
 
 if (Test-Path $payloadRoot) {
     Remove-Item -Path $payloadRoot -Recurse -Force
@@ -36,9 +44,12 @@ New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $serviceWrapperRoot -Force | Out-Null
 
 $requiredItems = @(
-    "src",
+    "dist",
     "package.json",
-    "package-lock.json",
+    "package-lock.json"
+)
+
+$optionalItems = @(
     ".env"
 )
 
@@ -49,7 +60,31 @@ foreach ($item in $requiredItems) {
     }
 
     $destinationPath = Join-Path $appRoot $item
-    Copy-Item -Path $sourcePath -Destination $destinationPath -Recurse -Force
+    if ($item -eq "package.json") {
+        Copy-Item -Path $sourcePath -Destination $destinationPath -Force
+        Write-Host "Patching package.json start script to run compiled JS..."
+        $pkgJson = Get-Content -Raw -Path $destinationPath | ConvertFrom-Json
+        if (-not $pkgJson.scripts) { $pkgJson | Add-Member -MemberType NoteProperty -Name scripts -Value @{ } -Force }
+        $pkgJson.scripts.start = "node dist/server.js"
+        $pkgJson.main = "dist/server.js"
+        # Mark staged package as ESM to run emitted ESM JS
+        # Ensure package type is set to module so Node treats emitted JS as ESM
+        $pkgJson | Add-Member -MemberType NoteProperty -Name type -Value "module" -Force
+        $pkgJson | ConvertTo-Json -Depth 100 | Set-Content -Path $destinationPath -Encoding UTF8
+    } else {
+        Copy-Item -Path $sourcePath -Destination $destinationPath -Recurse -Force
+    }
+}
+
+foreach ($item in $optionalItems) {
+    $sourcePath = Join-Path $repoRoot $item
+    if (Test-Path $sourcePath) {
+        $destinationPath = Join-Path $appRoot $item
+        Copy-Item -Path $sourcePath -Destination $destinationPath -Force
+        Write-Host "Included optional file: $item"
+    } else {
+        Write-Host "Optional item not found, skipping: $item"
+    }
 }
 
 if (!(Test-Path $actionsSource)) {

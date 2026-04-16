@@ -7,7 +7,10 @@
     "dev": "tsx src/server.ts",
     "start": "node node_modules/tsx/dist/cli.mjs src/server.ts",
     "installer:prepare": "powershell -ExecutionPolicy Bypass -File scripts/build-installer-payload.ps1",
-    "installer:build": "powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1"
+    "installer:build": "powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1",
+    "build:ts": "tsc -p tsconfig.build.json",
+    "obfuscate": "javascript-obfuscator dist --output dist --compact true --control-flow-flattening true --string-array true --string-array-rotate true --string-array-encoding base64 --transform-object-keys true",
+    "build:obfuscate": "npm run build:ts && npm run obfuscate"
   },
   "keywords": [
     "pdf",
