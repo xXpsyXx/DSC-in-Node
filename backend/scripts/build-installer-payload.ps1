@@ -1,6 +1,7 @@
 param(
     [string]$NodeVersion = "v22.14.0",
-    [string]$Arch = "x64"
+    [string]$Arch = "x64",
+    [switch]$ExcludeEnv
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,11 +14,11 @@ $serviceWrapperRoot = Join-Path $payloadRoot "service-wrapper"
 $actionsSource = Join-Path $repoRoot "installer\actions"
 $actionsDest = Join-Path $payloadRoot "installer-actions"
 $winswSourceDir = Join-Path $repoRoot "installer\winsw"
-$winswConfigSource = Join-Path $winswSourceDir "DSCBackendService.xml"
+$winswConfigSource = Join-Path $winswSourceDir "DigitalSignatureService.xml"
 
 $winswDownloadUrl = "https://github.com/winsw/winsw/releases/latest/download/WinSW-x64.exe"
-$winswExePath = Join-Path $serviceWrapperRoot "DSCBackendService.exe"
-$winswConfigDest = Join-Path $serviceWrapperRoot "DSCBackendService.xml"
+$winswExePath = Join-Path $serviceWrapperRoot "DigitalSignatureService.exe"
+$winswConfigDest = Join-Path $serviceWrapperRoot "DigitalSignatureService.xml"
 
 $normalizedNodeVersion = if ($NodeVersion.StartsWith("v")) { $NodeVersion } else { "v$NodeVersion" }
 $nodeZipName = "node-$normalizedNodeVersion-win-$Arch.zip"
@@ -59,40 +60,36 @@ foreach ($item in $requiredItems) {
     }
 
     $destinationPath = Join-Path $appRoot $item
-    Copy-Item -Path $sourcePath -Destination $destinationPath -Recurse -Force
+    if ($item -eq "package.json") {
+        Copy-Item -Path $sourcePath -Destination $destinationPath -Force
+        Write-Host "Patching package.json start script to run compiled JS..."
+        $pkgJson = Get-Content -Raw -Path $destinationPath | ConvertFrom-Json
+        if (-not $pkgJson.scripts) { $pkgJson | Add-Member -MemberType NoteProperty -Name scripts -Value @{ } -Force }
+        $pkgJson.scripts.start = "node dist/server.js"
+        $pkgJson.main = "dist/server.js"
+        # Mark staged package as ESM to run emitted ESM JS
+        # Ensure package type is set to module so Node treats emitted JS as ESM
+        $pkgJson | Add-Member -MemberType NoteProperty -Name type -Value "module" -Force
+        $pkgJson | ConvertTo-Json -Depth 100 | Set-Content -Path $destinationPath -Encoding UTF8
+    } else {
+        Copy-Item -Path $sourcePath -Destination $destinationPath -Recurse -Force
+    }
 }
 
-# Create .env.example template (do NOT include .env for security!)
-Write-Host "Creating .env.example template..."
-$envTemplate = @"
-# DSC Backend Configuration
-# IMPORTANT: Rename this to .env and fill in your actual values
-# WARNING: Keep .env PRIVATE - contains sensitive configuration
-
-PORT=5000
-NODE_ENV=production
-LOG_LEVEL=info
-
-# API Configuration
-REQUEST_SIGNER_SECRET=your-secret-key-here-change-this
-API_TIMEOUT=30000
-
-# PKCS#11 Configuration (if using USB tokens)
-PKCS11_MODULE_PATH=
-PKCS11_SLOT=
-
-# Optional: Azure/Cloud settings
-# AZURE_KEY_VAULT_URL=
-# AZURE_CLIENT_ID=
-# AZURE_CLIENT_SECRET=
-"@
-
-$envExamplePath = Join-Path $appRoot ".env.example"
-Set-Content -Path $envExamplePath -Value $envTemplate -Encoding UTF8
-
-Write-Host "⚠️  SECURITY NOTE: .env file is NOT included in installer" -ForegroundColor Yellow
-Write-Host "    Installer includes .env.example template instead" -ForegroundColor Yellow
-Write-Host "    User must create .env on the target machine with their values" -ForegroundColor Yellow
+foreach ($item in $optionalItems) {
+    $sourcePath = Join-Path $repoRoot $item
+    if (Test-Path $sourcePath) {
+        if ($item -eq ".env" -and $ExcludeEnv) {
+            Write-Host "ExcludeEnv specified, skipping .env"
+            continue
+        }
+        $destinationPath = Join-Path $appRoot $item
+        Copy-Item -Path $sourcePath -Destination $destinationPath -Force
+        Write-Host "Included optional file: $item"
+    } else {
+        Write-Host "Optional item not found, skipping: $item"
+    }
+}
 
 if (!(Test-Path $actionsSource)) {
     throw "Installer action scripts folder not found: $actionsSource"

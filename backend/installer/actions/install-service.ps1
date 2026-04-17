@@ -18,9 +18,8 @@ if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
 
 $resolvedInstallRoot = (Resolve-Path $InstallRoot).Path
 $nodeExe = Join-Path $resolvedInstallRoot "runtime\node.exe"
-$tsxCli = Join-Path $resolvedInstallRoot "app\node_modules\tsx\dist\cli.mjs"
-$serverScript = Join-Path $resolvedInstallRoot "app\src\server.ts"
-$serviceName = "DSCBackendService"
+$serverScript = Join-Path $resolvedInstallRoot "app\dist\server.js"
+$serviceName = "DigitalSignatureService"
 $serviceExe = Join-Path $resolvedInstallRoot "$serviceName.exe"
 $serviceConfig = Join-Path $resolvedInstallRoot "$serviceName.xml"
 $serviceLogDir = Join-Path $resolvedInstallRoot "logs"

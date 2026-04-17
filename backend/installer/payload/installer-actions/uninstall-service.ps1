@@ -8,7 +8,7 @@ if (-not $isAdmin) {
     throw "Administrator privileges are required to uninstall the service."
 }
 
-$serviceName = "DSCBackendService"
+$serviceName = "DigitalSignatureService"
 $existingService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 $installRoot = Split-Path -Parent $PSScriptRoot
 $serviceExe = Join-Path $installRoot "$serviceName.exe"

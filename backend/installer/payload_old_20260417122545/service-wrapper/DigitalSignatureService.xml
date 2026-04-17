@@ -1,0 +1,23 @@
+<service>
+  <id>DigitalSignatureService</id>
+  <name>Digital Signature Service</name>
+  <description>Digital Signature Service - PDF signing backend</description>
+
+  <executable>%BASE%\runtime\node.exe</executable>
+  <arguments>%BASE%\app\dist\server.js</arguments>
+  <workingdirectory>%BASE%\app</workingdirectory>
+
+  <startmode>Automatic</startmode>
+  <stoptimeout>15 sec</stoptimeout>
+
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="none" />
+
+  <logpath>%BASE%\logs</logpath>
+  <log mode="roll-by-size-time">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>14</keepFiles>
+    <pattern>yyyyMMdd</pattern>
+  </log>
+</service>

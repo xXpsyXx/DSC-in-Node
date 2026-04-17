@@ -8,12 +8,20 @@
     "dev": "tsx src/server.ts",
     "start": "node node_modules/tsx/dist/cli.mjs src/server.ts",
     "build": "tsc --outDir dist --declaration false --sourceMap false",
-    "obfuscate": "node scripts/obfuscate.js",
+  
     "build:obfuscated": "npm run build && npm run obfuscate",
     "deploy:build": "powershell -ExecutionPolicy Bypass -File scripts/deploy-build.ps1",
     "deploy:build:custom": "powershell -ExecutionPolicy Bypass -File scripts/deploy-build.ps1 -AppName ${{ env.APP_NAME }} -NodeVersion ${{ env.NODE_VERSION }}",
     "installer:prepare": "powershell -ExecutionPolicy Bypass -File scripts/build-installer-payload.ps1",
-    "installer:build": "powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1"
+    "installer:build": "powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1",
+    "installer:build-advanced": "powershell -ExecutionPolicy Bypass -File scripts/build-installer-advanced.ps1",
+    "build:ts": "tsc -p tsconfig.build.json",
+    "obfuscate": "javascript-obfuscator dist --output dist --compact true --control-flow-flattening true --string-array true --string-array-rotate true --string-array-encoding base64 --transform-object-keys true",
+    "build:obfuscate": "npm run build:ts && npm run obfuscate"
+    ,
+    "build:bundle": "npm run build:ts && webpack --config webpack.bundle.config.js",
+    "obfuscate:bundle": "javascript-obfuscator dist/bundle.js --output dist/bundle.obf.js --compact true --control-flow-flattening true --control-flow-flattening-threshold 0.75 --dead-code-injection true --dead-code-injection-threshold 0.4 --debug-protection true --debug-protection-interval 4000 --disable-console-output true --identifier-names-generator mangled --self-defending true --string-array true --string-array-rotate true --string-array-encoding base64 --string-array-threshold 0.75 --transform-object-keys true",
+    "build:bundle-obfuscate": "npm run build:bundle && npm run obfuscate:bundle"
   },
   "keywords": [
     "pdf",
