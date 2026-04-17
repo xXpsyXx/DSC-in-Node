@@ -1212,6 +1212,39 @@ export const getSupportedDriversHandler = async (
   }
 };
 
+    /**
+     * Probe token for certificate metadata without requiring a PIN.
+     * Returns detected driver and any certificates found (serial, subject CN, label).
+     */
+    export const probeTokenHandler = async (req: Request, res: Response) => {
+      try {
+        const driverPath = (req.query.driverPath as string) || undefined;
+        console.log('[probeTokenHandler] Probing for token certificates...', driverPath);
+
+        const probeResult = SignerService.probeForCertificates(driverPath);
+
+        if (!probeResult) {
+          console.warn('[probeTokenHandler] No USB token device detected');
+          return res.status(404).json({
+            detected: false,
+            message:
+              'No USB token device detected. Please insert your USB token and try again.',
+          });
+        }
+
+        res.json({
+          detected: true,
+          driverName: probeResult.driverName,
+          driverPath: probeResult.driverPath,
+          certificates: probeResult.certificates,
+          message: `USB token detected: ${probeResult.driverName}`,
+        });
+      } catch (error) {
+        console.error('[probeTokenHandler] Error:', error);
+        res.status(500).json({ detected: false, error: 'Failed to probe USB token' });
+      }
+    };
+
 /**
  * Auto-detect connected USB token and return driver information.
  * Scans for connected USB tokens on the system.

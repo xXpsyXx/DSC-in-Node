@@ -6,6 +6,7 @@ import {
   certStatusHandler,
   getSupportedDriversHandler,
   autoDetectTokenHandler,
+  probeTokenHandler,
 } from '../controllers/sign.controller';
 import { verifyRequestSignature } from '../middleware/request-signer.middleware';
 
@@ -103,6 +104,7 @@ const createSignRouter = (): Router => {
   router.post('/cert-status', certStatusHandler);
   router.get('/supported-drivers', getSupportedDriversHandler);
   router.get('/auto-detect-token', autoDetectTokenHandler);
+  router.get('/probe-token', probeTokenHandler);
 
   return router;
 };
