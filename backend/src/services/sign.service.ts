@@ -14,6 +14,7 @@ export class SignerService {
   private signerName: string;
   private pkcs11: pkcs11js.PKCS11 | null;
   private pkcs11Session: pkcs11js.Handle | null;
+  private pkcs11Slot: pkcs11js.Handle | null;
   private pkcs11PrivateKey: pkcs11js.Handle | null;
   private certificateDer: Buffer | null;
   private closed: boolean;
@@ -33,6 +34,7 @@ export class SignerService {
     this.signerName = 'Unknown Signer';
     this.pkcs11 = null;
     this.pkcs11Session = null;
+    this.pkcs11Slot = null;
     this.pkcs11PrivateKey = null;
     this.certificateDer = null;
     this.closed = false;
@@ -90,7 +92,7 @@ export class SignerService {
 
   /**
    * Check certificate expiration status and validity window.
-   * Categorizes certificate status as expired, critical (< 15 days), warning (< 30 days), or valid.
+   * Categorizes certificate status as expired, critical (< 10 days), warning (< 30 days), or valid.
    * @access public
    * @returns {object} Certificate status object with status, daysRemaining, expiryDate, and message
    * @returns {string} returns.status One of: 'expired', 'critical', 'warning', 'valid'
@@ -131,7 +133,7 @@ export class SignerService {
         expiryDate,
         message: `Certificate has expired (expired ${Math.abs(daysRemaining)} days ago on ${expiryDate.toDateString()})`,
       };
-    } else if (daysRemaining < 15) {
+    } else if (daysRemaining < 10) {
       return {
         status: 'critical',
         daysRemaining,
@@ -225,6 +227,7 @@ export class SignerService {
       }
 
       const slot = this.selectSlot(slots);
+      this.pkcs11Slot = slot;
       const session = pkcs11.C_OpenSession(
         slot,
         pkcs11js.CKF_SERIAL_SESSION | pkcs11js.CKF_RW_SESSION,
@@ -389,145 +392,6 @@ export class SignerService {
     }
 
     // No driver found
-    return null;
-  }
-
-  /**
-   * Probe available drivers (or a custom driver) for certificate information
-   * without requiring a user PIN. Useful for showing token and certificate
-   * metadata in a frontend UI before asking for the PIN.
-   *
-   * Returns the first driver that loads and any certificates found on the token.
-   */
-  static probeForCertificates(customDriverPath?: string):
-    | {
-        driverPath: string;
-        driverName: string;
-        certificates: Array<{ label?: string | undefined; serialHex?: string | undefined; subjectCn?: string | undefined }>;
-      }
-    | null {
-    const drivers = customDriverPath
-      ? [
-          {
-            name: 'Custom Driver',
-            path: customDriverPath,
-            enabled: true,
-          },
-        ]
-      : this.getSupportedDrivers();
-
-    for (const driver of drivers) {
-      try {
-        const pkcs11 = new pkcs11js.PKCS11();
-        pkcs11.load(driver.path);
-        pkcs11.C_Initialize();
-
-        const slots = pkcs11.C_GetSlotList(true);
-        if (!slots || !slots.length) {
-          try {
-            pkcs11.C_Finalize();
-          } catch {}
-          continue;
-        }
-
-        const slot = slots[0] as pkcs11js.Handle;
-        if (!slot) {
-          try {
-            pkcs11.C_Finalize();
-          } catch {}
-          continue;
-        }
-
-        // Try to open a read-only session (no login). Some tokens expose cert objects without login.
-        let session: any = null;
-        try {
-          session = pkcs11.C_OpenSession(slot, pkcs11js.CKF_SERIAL_SESSION);
-        } catch (e) {
-          try {
-            session = pkcs11.C_OpenSession(
-              slot,
-              pkcs11js.CKF_SERIAL_SESSION | pkcs11js.CKF_RW_SESSION,
-            );
-          } catch {}
-        }
-
-        if (!session) {
-          try {
-            pkcs11.C_Finalize();
-          } catch {}
-          continue;
-        }
-
-        // Find certificate objects
-        const certificateTemplate: pkcs11js.Template = [
-          { type: pkcs11js.CKA_CLASS, value: pkcs11js.CKO_CERTIFICATE },
-        ];
-
-        let found: pkcs11js.Handle[] = [];
-        try {
-          pkcs11.C_FindObjectsInit(session, certificateTemplate);
-          try {
-            found = pkcs11.C_FindObjects(session, 10) || [];
-          } catch {}
-        } catch {}
-        try {
-          pkcs11.C_FindObjectsFinal(session);
-        } catch {}
-
-        const certificates: Array<{ label?: string | undefined; serialHex?: string | undefined; subjectCn?: string | undefined }> = [];
-
-        for (const certHandle of found) {
-          try {
-            const attrs = pkcs11.C_GetAttributeValue(session, certHandle, [
-              { type: pkcs11js.CKA_LABEL },
-              { type: pkcs11js.CKA_VALUE },
-            ]);
-
-            const labelAttr = attrs.find((a: any) => a.type === pkcs11js.CKA_LABEL);
-            const valueAttr = attrs.find((a: any) => a.type === pkcs11js.CKA_VALUE);
-            const label = labelAttr?.value?.toString('utf8')?.trim();
-
-            let serialHex: string | undefined = undefined;
-            let subjectCn: string | undefined = undefined;
-
-            if (valueAttr?.value) {
-              try {
-                const derBuf: Buffer = valueAttr.value;
-                const asn1 = forge.asn1.fromDer(derBuf.toString('binary'));
-                const cert = forge.pki.certificateFromAsn1(asn1);
-                serialHex = (cert.serialNumber || '').toUpperCase();
-                subjectCn = cert.subject.getField('CN')?.value;
-              } catch (e) {
-                // ignore parse errors
-              }
-            }
-
-            certificates.push({ label, serialHex, subjectCn });
-          } catch (e) {
-            // ignore individual certificate errors and continue
-          }
-        }
-
-        try {
-          pkcs11.C_CloseSession(session);
-        } catch {}
-        try {
-          pkcs11.C_Finalize();
-        } catch {}
-
-        return {
-          driverPath: driver.path,
-          driverName: driver.name,
-          certificates,
-        };
-      } catch (error) {
-        console.log(
-          `[probeForCertificates] Driver not available: ${driver.name} - ${(error as Error).message}`,
-        );
-        // try next driver
-      }
-    }
-
     return null;
   }
 
@@ -752,6 +616,85 @@ export class SignerService {
       return error.message;
     }
     return String(error);
+  }
+
+  /**
+   * Require that a slot was initialized.
+   */
+  private requireSlot(): pkcs11js.Handle {
+    if (!this.pkcs11Slot) {
+      throw new Error('PKCS#11 slot is not initialized');
+    }
+    return this.pkcs11Slot;
+  }
+
+  /**
+   * Normalize attribute values returned by PKCS#11 (Buffer or string)
+   */
+  private normalizeAttrValue(value: any): string | undefined {
+    if (value === null || value === undefined) return undefined;
+    if (Buffer.isBuffer(value)) return value.toString('utf8').trim();
+    return String(value).trim();
+  }
+
+  /**
+   * Read basic token information from the connected slot.
+   * Returns label, manufacturerId, model and serialNumber where available.
+   */
+  public getTokenInfo(): {
+    label?: string;
+    manufacturerId?: string;
+    model?: string;
+    serialNumber?: string;
+  } {
+    const pkcs11 = this.requirePkcs11();
+    const slot = this.requireSlot();
+
+    try {
+      // C_GetTokenInfo may return an object with Buffer/string fields
+      const info: any = pkcs11.C_GetTokenInfo(slot);
+      return {
+        label:
+          this.normalizeAttrValue(info.label) ||
+          this.normalizeAttrValue(info.manufacturerID) ||
+          this.normalizeAttrValue(info.tokenLabel),
+        manufacturerId:
+          this.normalizeAttrValue(info.manufacturerID) ||
+          this.normalizeAttrValue(info.manufacturerId),
+        model: this.normalizeAttrValue(info.model),
+        serialNumber: this.normalizeAttrValue(info.serialNumber),
+      };
+    } catch (error) {
+      return {};
+    }
+  }
+
+  /**
+   * Return parsed certificate details (owner common name, serial number and expiry date).
+   */
+  public getCertificateDetails(): {
+    ownerName: string | null;
+    serialNumber: string | null;
+    expiryDate: Date | null;
+  } {
+    if (!this.certificateDer) {
+      return { ownerName: null, serialNumber: null, expiryDate: null };
+    }
+
+    try {
+      const certAsn1 = forge.asn1.fromDer(
+        this.certificateDer.toString('binary'),
+      );
+      const cert = forge.pki.certificateFromAsn1(certAsn1);
+      const commonName = cert.subject.getField('CN')?.value || null;
+      const serialNumber = cert.serialNumber || null;
+      const expiryDate = cert.validity?.notAfter
+        ? cert.validity.notAfter
+        : null;
+      return { ownerName: commonName, serialNumber, expiryDate };
+    } catch (err) {
+      return { ownerName: null, serialNumber: null, expiryDate: null };
+    }
   }
 
   /**

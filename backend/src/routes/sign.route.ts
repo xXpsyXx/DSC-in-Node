@@ -4,11 +4,12 @@ import {
   signHandler,
   verifyHandler,
   certStatusHandler,
+  getCertDetailsHandler,
   getSupportedDriversHandler,
   autoDetectTokenHandler,
-  probeTokenHandler,
-} from '../controllers/sign.controller';
-import { verifyRequestSignature } from '../middleware/request-signer.middleware';
+} from '../controllers/sign.controller.ts';
+import { verifyRequestSignature } from '../middleware/request-signer.middleware.ts';
+import { verifyBackendJwt } from '../middleware/jwt-verify.middleware.ts';
 
 /**
  * Get request signer secret from environment configuration.
@@ -99,12 +100,12 @@ const createSignRouter = (): Router => {
   );
 
   // Register endpoints
-  router.post('/sign', requestSignerMiddleware, signHandler);
+  router.post('/sign', verifyBackendJwt, requestSignerMiddleware, signHandler);
   router.post('/verify', verifyHandler);
   router.post('/cert-status', certStatusHandler);
+  router.post('/get-cert-details', getCertDetailsHandler);
   router.get('/supported-drivers', getSupportedDriversHandler);
   router.get('/auto-detect-token', autoDetectTokenHandler);
-  router.get('/probe-token', probeTokenHandler);
 
   return router;
 };

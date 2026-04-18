@@ -1,10 +1,10 @@
 import type { Request, Response } from 'express';
-import { SignerService } from '../services/sign.service';
-import { HashService } from '../services/hash.service';
-import { VerifyService } from '../services/verify.service';
-import { PdfSignerService } from '../services/pdf-signer.service';
-import { Pkcs7SignerService } from '../services/pkcs7-signer.service';
-import { TsaService } from '../services/tsa.service';
+import { SignerService } from '../services/sign.service.ts';
+import { HashService } from '../services/hash.service.ts';
+import { VerifyService } from '../services/verify.service.ts';
+import { PdfSignerService } from '../services/pdf-signer.service.ts';
+import { Pkcs7SignerService } from '../services/pkcs7-signer.service.ts';
+import { TsaService } from '../services/tsa.service.ts';
 import { IncomingForm } from 'formidable';
 import * as fs from 'fs';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -16,7 +16,7 @@ import {
   isUsbTokenMissingErrorMessage,
   isUsbTokenErrorMessage,
   getHardwareErrorResponse,
-} from '../utils/error-handlers';
+} from '../utils/error-handlers.ts';
 
 let verifyService: VerifyService | null = null;
 
@@ -61,6 +61,87 @@ const svgToPngBuffer = async (): Promise<Buffer> => {
     throw new Error(
       `Failed to convert SVG to PNG: ${(error as Error).message}`,
     );
+  }
+};
+
+/**
+ * Get certificate and token details for a given PIN.
+ * Returns owner name, token name, pendrive company identifier, certificate serial and expiry.
+ */
+export const getCertDetailsHandler = async (req: Request, res: Response) => {
+  try {
+    let pin: string | undefined;
+
+    // Accept JSON body or form-data
+    if (req.body && (req.body as any).pin) {
+      pin = (req.body as any).pin;
+    } else {
+      const form = new IncomingForm();
+      const [fields] = await form.parse(req);
+      pin = fields.pin?.[0];
+    }
+
+    if (!pin) return res.status(400).json({ error: 'pin is required' });
+
+    console.log('[getCertDetailsHandler] Retrieving certificate details');
+
+    let signer: SignerService | null = null;
+
+    try {
+      signer = loadSigner(pin);
+    } catch (signError) {
+      const errorMsg = (signError as any).message || '';
+      console.error('[getCertDetailsHandler] Error loading signer:', errorMsg);
+
+      if (isPinErrorMessage(errorMsg)) {
+        return res
+          .status(401)
+          .json({ error: 'Invalid PIN - Cannot unlock certificate.' });
+      }
+
+      const hardwareError = getHardwareErrorResponse(errorMsg);
+      if (hardwareError)
+        return res.status(hardwareError.status).json(hardwareError.body);
+
+      throw signError;
+    }
+
+    const tokenInfo = signer.getTokenInfo();
+    const certDetails = signer.getCertificateDetails();
+    const certStatus = checkCertificateStatus(signer);
+    const signerName = signer.getSignerName();
+
+    signer.close();
+
+    res.json({
+      ownerName: certDetails.ownerName || signerName,
+      tokenName: tokenInfo.label || tokenInfo.model || 'Unknown',
+      pendriveCompany:
+        tokenInfo.manufacturerId ||
+        tokenInfo.model ||
+        tokenInfo.serialNumber ||
+        null,
+      certSerialNumber: certDetails.serialNumber,
+      certExpiryDate: certStatus.expiryDate,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[getCertDetailsHandler] Error:', error);
+    const errorMsg = (error as any).message || '';
+
+    const hardwareError = getHardwareErrorResponse(errorMsg);
+    if (hardwareError)
+      return res.status(hardwareError.status).json(hardwareError.body);
+
+    if (isPinErrorMessage(errorMsg)) {
+      return res
+        .status(401)
+        .json({ error: 'Invalid PIN - Cannot unlock certificate.' });
+    }
+
+    res
+      .status(500)
+      .json({ error: 'Failed to get certificate details: ' + errorMsg });
   }
 };
 
@@ -1211,39 +1292,6 @@ export const getSupportedDriversHandler = async (
     });
   }
 };
-
-    /**
-     * Probe token for certificate metadata without requiring a PIN.
-     * Returns detected driver and any certificates found (serial, subject CN, label).
-     */
-    export const probeTokenHandler = async (req: Request, res: Response) => {
-      try {
-        const driverPath = (req.query.driverPath as string) || undefined;
-        console.log('[probeTokenHandler] Probing for token certificates...', driverPath);
-
-        const probeResult = SignerService.probeForCertificates(driverPath);
-
-        if (!probeResult) {
-          console.warn('[probeTokenHandler] No USB token device detected');
-          return res.status(404).json({
-            detected: false,
-            message:
-              'No USB token device detected. Please insert your USB token and try again.',
-          });
-        }
-
-        res.json({
-          detected: true,
-          driverName: probeResult.driverName,
-          driverPath: probeResult.driverPath,
-          certificates: probeResult.certificates,
-          message: `USB token detected: ${probeResult.driverName}`,
-        });
-      } catch (error) {
-        console.error('[probeTokenHandler] Error:', error);
-        res.status(500).json({ detected: false, error: 'Failed to probe USB token' });
-      }
-    };
 
 /**
  * Auto-detect connected USB token and return driver information.
