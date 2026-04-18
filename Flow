@@ -1,0 +1,224 @@
+# Digital Signature Flow (RETMS)
+
+Date: 2026-04-18
+
+## Overview
+
+This document describes the end-to-end digital signature (DSC) flow used by RETMS. It covers the interactions between the user, frontend (Angular), local DSC agent, backend (RETMS API), storage (MinIO) and database, including API endpoints, request/response shapes, and verification steps.
+
+## Components
+
+- Frontend — Angular app (`DigitalSignatureService`) that orchestrates signing.
+- Local DSC Agent — Runs on the user's machine; performs private-key signing with USB token and returns PKCS#7.
+- Backend — RETMS API (`digital-signature` module) that issues signing tokens, verifies signatures, logs audits, and stores signed PDFs.
+- Storage — MinIO (object storage) for storing PDFs.
+- Database — Postgres tables: `notices`, `dsc_audit_log`, `dsc_certificates`.
+
+## High-level sequence
+
+1. User triggers "Sign" in UI.
+2. Frontend checks local DSC agent health (`GET /health`).
+3. Frontend requests a signing token from backend (`POST /digital-signature/request-sign`).
+4. Backend fetches or generates the PDF, computes `fileHash`, and returns a short-lived JWT + metadata.
+5. Frontend downloads the PDF (`GET /digital-signature/download-pdf/:documentId`).
+6. Frontend sends PDF + PIN + JWT to the local DSC agent (`POST /sign`).
+7. Agent verifies the JWT/public key, validates hash, produces a signed PDF (PKCS#7), and responds with the signed PDF blob and `X-PKCS7-Signature` header.
+8. Frontend converts the signed PDF blob to base64 and posts it to backend (`POST /digital-signature/submit-signed`) with the original JWT and optional PKCS#7 hex.
+9. Backend verifies the JWT, recomputes/extracts hash, verifies PKCS#7, validates certificate/chain/revocation, performs TSA checks, logs an audit, signs a verification proof, stores the signed PDF in object storage, and updates the notice status to `signed`.
+
+## Mermaid sequence diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant FE as Frontend (Angular)
+    participant BE as Backend (RETMS API)
+    participant Agent as Local DSC Agent
+    participant Storage as MinIO
+    participant DB as Database
+
+    User->>FE: Click "Sign" (UI)
+    FE->>Agent: GET /health (checkAgentHealth)
+    alt Agent running
+        FE->>BE: POST /digital-signature/request-sign\n{ documentId, documentType }
+        BE->>Storage: fetch PDF or generate from HTML
+        BE-->>FE: 200 ApiResponse { data: { jwt, fileHash, requestId, pdfUrl }, message }
+
+        FE->>BE: GET /digital-signature/download-pdf/:documentId
+        BE-->>FE: 200 application/pdf (PDF blob)
+
+        FE->>Agent: POST /sign (form-data: file, pin)\nAuthorization: Bearer <jwt>
+        Agent->>BE: GET /digital-signature/public-key (verify JWT)
+        BE-->>Agent: 200 ApiResponse { data: { publicKey }, message }
+        Agent->>Agent: verify JWT, validate file hash, sign PDF (PKCS#7)
+        Agent-->>FE: 200 signed PDF blob + header X-PKCS7-Signature: <hex>
+
+        FE->>FE: Convert signed PDF Blob -> base64
+        FE->>BE: POST /digital-signature/submit-signed\n{ signedPdf: base64, jwt, pkcs7Signature }
+
+        BE->>BE: verify JWT (RS256), recompute/extract hash,\n+verify PKCS#7, validate cert chain/usage, check OCSP/CRL,\n+identity binding, replay protection, TSA validation
+        BE->>DB: log audit entry (dsc_audit_log)
+        BE->>Storage: upload signed PDF (notices/signed/...)
+        BE->>DB: update notice status to 'signed', update pdf_url
+        BE-->>FE: 200 ApiResponse { data: { signedPdf: signedPdfUrl, verification: { proof, signature } }, message }
+        FE-->>User: Show success
+    else Agent not running
+        FE-->>User: Show "DSC signing agent is not running" error
+    end
+```
+
+## API endpoints (quick reference)
+
+- `POST /digital-signature/request-sign`
+  - Request: `RequestSignDto` { documentId, documentType }
+  - Response: 200 ApiResponse { jwt, fileHash, requestId, pdfUrl }
+- `GET /digital-signature/public-key`
+  - Response: 200 ApiResponse { kid, alg, use, publicKey }
+- `GET /digital-signature/download-pdf/:documentId`
+  - Response: application/pdf (binary)
+- `POST /digital-signature/submit-signed`
+  - Request: `SubmitSignedDto` { signedPdf: base64, jwt, pkcs7Signature? }
+  - Response: 200 ApiResponse { signedPdf: signedPdfUrl, verification: { proof, signature } }
+- `GET /digital-signature/verify-document/:documentId`
+  - Response: 200 ApiResponse verification details or 404
+
+## Response mapping (frontend → backend → frontend → local → frontend → backend)
+
+- Frontend calls backend → backend returns ApiResponse wrapper `{ success, statusCode, data, message }`.
+- Agent communicates with backend public-key endpoint for JWT verification.
+- Signed PDF travels as binary between FE ↔ Agent, and as base64 in JSON from FE → Backend on `/submit-signed`.
+
+## Detailed step-by-step flow
+
+1. User (Designated Officer) clicks "Sign" in the UI.
+   - UI: opens PIN modal and starts the signing workflow.
+
+2. Frontend checks local DSC agent health.
+   - Request: `GET ${DSC_AGENT_BASE}/health`
+   - Success: HTTP 200 (plain text like `OK`) → proceed.
+   - Failure: show "Agent not running" error and abort.
+
+3. Frontend requests a signing token from backend.
+   - Request: `POST /digital-signature/request-sign`
+     - Body (JSON): `{ "documentId": "<id>", "documentType": "notice" }`
+   - Backend actions:
+     - Authenticate user.
+     - Load PDF from MinIO or build PDF from HTML (fallback).
+     - Compute `fileHash = sha256(pdfBuffer)`.
+     - Generate `requestId = UUID`.
+     - Issue short-lived signing JWT: `getDscSignToken({ action:'sign', fileHash, userId, requestId, documentId, documentType })`.
+   - Response: 200 ApiResponse
+     - `data`: `{ jwt: "<jwt>", fileHash: "<sha256>", requestId: "<uuid>", pdfUrl: "<objectPath>" }`
+
+4. Frontend downloads the PDF to sign.
+   - Request: `GET /digital-signature/download-pdf/:documentId`
+   - Response: 200 `application/pdf` (binary blob)
+
+5. Frontend sends PDF + PIN + JWT to the local DSC agent for signing.
+   - Request to agent: `POST ${DSC_AGENT_BASE}/sign`
+     - `Content-Type`: `multipart/form-data`
+     - Form fields: `file` (PDF blob), `pin` (string)
+     - Header: `Authorization: Bearer <jwt>`
+   - Agent behavior (expected):
+     - Fetch backend public key: `GET /digital-signature/public-key` if it does not already have it.
+     - Verify JWT signature (RS256) and payload fields (`fileHash`, `requestId`, `documentId`, `documentType`, `userId`).
+     - Compute `sha256` of received PDF and compare to `fileHash`. If mismatch → reject.
+     - Use local USB token (PKCS#11) to create PKCS#7 signature and embed in PDF.
+   - Agent Response:
+     - Success: 200 `application/pdf` (signed PDF binary) + optional header `X-PKCS7-Signature: <hex>`
+     - Failure: 4xx error (JSON or blob) with diagnostic message.
+
+6. Frontend converts signed PDF blob to base64 and extracts PKCS#7 header.
+   - Use `FileReader` to produce a base64 string (no `data:` prefix).
+   - Capture `pkcs7Signature` from response header if present.
+
+7. Frontend submits the signed PDF back to backend for verification.
+   - Request: `POST /digital-signature/submit-signed`
+     - Body (JSON) per `SubmitSignedDto`:
+       `{ "signedPdf": "<base64>", "jwt": "<original_jwt>", "pkcs7Signature": "<hex?>" }`
+
+8. Backend verifies the signing JWT.
+   - `isDscSignTokenValid(jwt)` performs RS256 verification using `DscKeyService.getPublicKey()`.
+   - On failure → 401 Unauthorized.
+   - On success → extract `jwtPayload` fields: `fileHash` (original), `requestId`, `documentId`, `documentType`, `userId`.
+
+9. Backend replay protection.
+   - Check `auditService.isRequestIdUsed(requestId)`.
+   - If used → 409 Conflict (replay detected).
+
+10. Backend decodes `signedPdf` and recomputes its hash.
+    - `signedPdfBuffer = Buffer.from(signedPdfBase64, 'base64')`
+    - `recomputedHash = sha256(signedPdfBuffer)` (note: this is the hash of the signed PDF, not the original unsigned PDF).
+
+11. Backend performs PKCS#7 verification and certificate extraction.
+    - `verifyPkcs7Signature(signedPdfBuffer, pkcs7Signature)`:
+      - Extract PKCS#7 from PDF or use provided hex.
+      - Parse ASN.1 / SignedData, extract signer certificate and signer name.
+      - Attempt cryptographic signature verification of the signed attributes or signed content.
+    - Result contains: `valid`, `signerName`, `certPem`, `certSerial`, `certExpiry`, `errors[]`.
+
+12. Backend validates certificate and revocation.
+    - `validateCertificate(certPem)` checks expiry and key usage.
+    - `checkRevocation(certPem)` inspects CRL/OCSP endpoints (current implementation detects endpoints but does not perform network revocation queries).
+    - If certificate is revoked/expired or key usage invalid → add critical errors.
+
+13. Backend binds identity and JWT/fileHash.
+    - `verifyIdentityBinding(certPem, userId)` should confirm certificate subject matches the user identity (current code returns true by design — improve this).
+    - JWT binding (current implementation): presence of `jwt.fileHash` is noted; recommended: compare `jwt.fileHash` to the original PDF SHA-256 computed server-side (or to the PKCS#7 `messageDigest` authenticated attribute). If mismatch → reject.
+
+14. Backend validates TSA / signing timestamp.
+    - `validateTimestamp(signedPdfBuffer)` looks for `/M (D:...)` in PDF or PKCS#7 signingTime and returns `tsa.valid` and timestamp.
+
+15. Backend decides verification outcome.
+    - Build `criticalErrors` from any `expired`, `revoked`, or `key usage` failures.
+    - `isVerified = criticalErrors.length === 0`
+    - If not verified → persist audit with status `FAILED` and return 422 Unprocessable Entity with details.
+
+16. Backend stores audit log (always).
+    - `auditService.logAudit(...)` writes to `dsc_audit_log` with `verification_details`, `requestId`, `documentHash` (recomputed), `certSerial`, `signerName`, status `SUCCESS|FAILED`, `ipAddress`.
+
+17. On success: create verification proof and sign it.
+    - Proof object: `{ documentHash: recomputedHash, verifiedAt, userId, certSerial, signerName, status:'VERIFIED', requestId }`
+    - Backend signs proof: `signProof(proof, dscKeyService.getPrivateKey())` → base64 signature.
+
+18. Backend saves signed PDF and updates notice state.
+    - Upload to MinIO: object path `notices/signed/Signed_<type>_<id>_<ts>.pdf`
+    - Update DB:
+      - `UPDATE notices SET notice_status='signed', pdf_url = <objectPath>, updated_at = NOW() WHERE notice_id = $1`
+    - Optionally log complaint action via `complaintService.logAction(...)`.
+
+19. Backend responds to frontend.
+    - 200 ApiResponse
+      - `data`: `{ signedPdf: "<objectPath>", verification: { proof, signature } }`
+      - message: `'Signature verified and PDF saved'`
+
+20. Frontend handles success/failure UI.
+    - On success: show success toast, close modals, refresh notices list.
+    - On verification failure: show error with server-provided `errors` and `details`.
+
+21. Error codes summary:
+    - 401 Unauthorized — invalid or expired signing JWT.
+    - 409 Conflict — replay detected (requestId already used).
+    - 422 Unprocessable Entity — signature verification failed (detailed errors).
+    - 404 Not Found — document/pdf not found.
+    - 400 Bad Request — missing fields / malformed payloads.
+
+## Major findings (summary)
+
+- Critical: JWT binding check is weak — backend currently only checks JWT validity but does not ensure the signed PDF corresponds exactly to the original `fileHash` embedded in the JWT. This could allow token reuse with a different PDF.
+- DSC signing key is auto-generated when env vars are absent; ephemeral keys break token verification across restarts.
+- PKCS#7 verification uses multiple heuristics; use a robust CMS verification approach and ensure authenticatedAttributes `messageDigest` is checked against the original hash.
+- Revocation checks (OCSP/CRL) are detected but not fully implemented.
+- `submit-signed` accepts base64-in-JSON which may cause large-memory usage; prefer multipart/streaming.
+
+## Recommendations (short)
+
+1. Enforce strong JWT binding: compare original `fileHash` (from JWT) with the original unsigned PDF hash retrieved server-side, or verify `messageDigest` in PKCS#7 equals that hash.
+2. Persist DSC signing keypair in configuration/secret store for production (do not auto-generate in prod).
+3. Implement real OCSP/CRL checks with timeouts and caching.
+4. Accept signed PDF via multipart/streaming endpoint instead of base64 JSON to reduce memory pressure.
+5. Preserve original PDF (add `signed_pdf_url` column) instead of overwriting the original `pdf_url`.
+
+## Next steps
+
+- This document was generated from code review. If you want, I can open a PR implementing the strong JWT binding check (high priority).
