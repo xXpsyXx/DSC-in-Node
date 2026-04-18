@@ -64,6 +64,87 @@ const svgToPngBuffer = async (): Promise<Buffer> => {
   }
 };
 
+/**
+ * Get certificate and token details for a given PIN.
+ * Returns owner name, token name, pendrive company identifier, certificate serial and expiry.
+ */
+export const getCertDetailsHandler = async (req: Request, res: Response) => {
+  try {
+    let pin: string | undefined;
+
+    // Accept JSON body or form-data
+    if (req.body && (req.body as any).pin) {
+      pin = (req.body as any).pin;
+    } else {
+      const form = new IncomingForm();
+      const [fields] = await form.parse(req);
+      pin = fields.pin?.[0];
+    }
+
+    if (!pin) return res.status(400).json({ error: 'pin is required' });
+
+    console.log('[getCertDetailsHandler] Retrieving certificate details');
+
+    let signer: SignerService | null = null;
+
+    try {
+      signer = loadSigner(pin);
+    } catch (signError) {
+      const errorMsg = (signError as any).message || '';
+      console.error('[getCertDetailsHandler] Error loading signer:', errorMsg);
+
+      if (isPinErrorMessage(errorMsg)) {
+        return res
+          .status(401)
+          .json({ error: 'Invalid PIN - Cannot unlock certificate.' });
+      }
+
+      const hardwareError = getHardwareErrorResponse(errorMsg);
+      if (hardwareError)
+        return res.status(hardwareError.status).json(hardwareError.body);
+
+      throw signError;
+    }
+
+    const tokenInfo = signer.getTokenInfo();
+    const certDetails = signer.getCertificateDetails();
+    const certStatus = checkCertificateStatus(signer);
+    const signerName = signer.getSignerName();
+
+    signer.close();
+
+    res.json({
+      ownerName: certDetails.ownerName || signerName,
+      tokenName: tokenInfo.label || tokenInfo.model || 'Unknown',
+      pendriveCompany:
+        tokenInfo.manufacturerId ||
+        tokenInfo.model ||
+        tokenInfo.serialNumber ||
+        null,
+      certSerialNumber: certDetails.serialNumber,
+      certExpiryDate: certStatus.expiryDate,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[getCertDetailsHandler] Error:', error);
+    const errorMsg = (error as any).message || '';
+
+    const hardwareError = getHardwareErrorResponse(errorMsg);
+    if (hardwareError)
+      return res.status(hardwareError.status).json(hardwareError.body);
+
+    if (isPinErrorMessage(errorMsg)) {
+      return res
+        .status(401)
+        .json({ error: 'Invalid PIN - Cannot unlock certificate.' });
+    }
+
+    res
+      .status(500)
+      .json({ error: 'Failed to get certificate details: ' + errorMsg });
+  }
+};
+
 // ============ PDF SETUP & METADATA ============
 
 /**

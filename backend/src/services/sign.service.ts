@@ -14,6 +14,7 @@ export class SignerService {
   private signerName: string;
   private pkcs11: pkcs11js.PKCS11 | null;
   private pkcs11Session: pkcs11js.Handle | null;
+  private pkcs11Slot: pkcs11js.Handle | null;
   private pkcs11PrivateKey: pkcs11js.Handle | null;
   private certificateDer: Buffer | null;
   private closed: boolean;
@@ -33,6 +34,7 @@ export class SignerService {
     this.signerName = 'Unknown Signer';
     this.pkcs11 = null;
     this.pkcs11Session = null;
+    this.pkcs11Slot = null;
     this.pkcs11PrivateKey = null;
     this.certificateDer = null;
     this.closed = false;
@@ -131,13 +133,6 @@ export class SignerService {
         expiryDate,
         message: `Certificate has expired (expired ${Math.abs(daysRemaining)} days ago on ${expiryDate.toDateString()})`,
       };
-    } else if (daysRemaining < 10) {
-      return {
-        status: 'critical',
-        daysRemaining,
-        expiryDate,
-        message: `Certificate expires in ${daysRemaining} days (${expiryDate.toDateString()}) - SIGNING BLOCKED`,
-      };
     } else if (daysRemaining < 30) {
       return {
         status: 'warning',
@@ -225,6 +220,7 @@ export class SignerService {
       }
 
       const slot = this.selectSlot(slots);
+      this.pkcs11Slot = slot;
       const session = pkcs11.C_OpenSession(
         slot,
         pkcs11js.CKF_SERIAL_SESSION | pkcs11js.CKF_RW_SESSION,
@@ -613,6 +609,85 @@ export class SignerService {
       return error.message;
     }
     return String(error);
+  }
+
+  /**
+   * Require that a slot was initialized.
+   */
+  private requireSlot(): pkcs11js.Handle {
+    if (!this.pkcs11Slot) {
+      throw new Error('PKCS#11 slot is not initialized');
+    }
+    return this.pkcs11Slot;
+  }
+
+  /**
+   * Normalize attribute values returned by PKCS#11 (Buffer or string)
+   */
+  private normalizeAttrValue(value: any): string | undefined {
+    if (value === null || value === undefined) return undefined;
+    if (Buffer.isBuffer(value)) return value.toString('utf8').trim();
+    return String(value).trim();
+  }
+
+  /**
+   * Read basic token information from the connected slot.
+   * Returns label, manufacturerId, model and serialNumber where available.
+   */
+  public getTokenInfo(): {
+    label?: string;
+    manufacturerId?: string;
+    model?: string;
+    serialNumber?: string;
+  } {
+    const pkcs11 = this.requirePkcs11();
+    const slot = this.requireSlot();
+
+    try {
+      // C_GetTokenInfo may return an object with Buffer/string fields
+      const info: any = pkcs11.C_GetTokenInfo(slot);
+      return {
+        label:
+          this.normalizeAttrValue(info.label) ||
+          this.normalizeAttrValue(info.manufacturerID) ||
+          this.normalizeAttrValue(info.tokenLabel),
+        manufacturerId:
+          this.normalizeAttrValue(info.manufacturerID) ||
+          this.normalizeAttrValue(info.manufacturerId),
+        model: this.normalizeAttrValue(info.model),
+        serialNumber: this.normalizeAttrValue(info.serialNumber),
+      };
+    } catch (error) {
+      return {};
+    }
+  }
+
+  /**
+   * Return parsed certificate details (owner common name, serial number and expiry date).
+   */
+  public getCertificateDetails(): {
+    ownerName: string | null;
+    serialNumber: string | null;
+    expiryDate: Date | null;
+  } {
+    if (!this.certificateDer) {
+      return { ownerName: null, serialNumber: null, expiryDate: null };
+    }
+
+    try {
+      const certAsn1 = forge.asn1.fromDer(
+        this.certificateDer.toString('binary'),
+      );
+      const cert = forge.pki.certificateFromAsn1(certAsn1);
+      const commonName = cert.subject.getField('CN')?.value || null;
+      const serialNumber = cert.serialNumber || null;
+      const expiryDate = cert.validity?.notAfter
+        ? cert.validity.notAfter
+        : null;
+      return { ownerName: commonName, serialNumber, expiryDate };
+    } catch (err) {
+      return { ownerName: null, serialNumber: null, expiryDate: null };
+    }
   }
 
   /**
