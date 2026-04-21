@@ -407,9 +407,16 @@ export class SignerService {
    * Probe token info (token label, manufacturer, model, serial) using supported drivers.
    * Does not require PIN. Returns first found token info along with driver metadata.
    */
-  static probeTokenInfo():
-    | { driverPath: string; driverName: string; tokenInfo: { label?: string; manufacturerId?: string; model?: string; serialNumber?: string } }
-    | null {
+  static probeTokenInfo(): {
+    driverPath: string;
+    driverName: string;
+    tokenInfo: {
+      label?: string;
+      manufacturerId?: string;
+      model?: string;
+      serialNumber?: string;
+    };
+  } | null {
     const drivers = this.getSupportedDrivers();
 
     for (const driver of drivers) {
@@ -419,18 +426,32 @@ export class SignerService {
         pkcs11.C_Initialize();
 
         const slots = pkcs11.C_GetSlotList(true);
-        if (!slots.length) {
-          pkcs11.C_Finalize();
+        if (!slots || slots.length === 0) {
+          try {
+            pkcs11.C_Finalize();
+          } catch {
+            // ignore
+          }
           continue;
         }
 
         const slot = slots[0];
+        if (!slot) {
+          try {
+            pkcs11.C_Finalize();
+          } catch {
+            // ignore
+          }
+          continue;
+        }
+
         // Try to read token info without logging in
         let info: any = {};
         try {
           info = pkcs11.C_GetTokenInfo(slot) || {};
         } catch (e) {
           // ignore
+          info = {};
         }
 
         try {
@@ -439,15 +460,38 @@ export class SignerService {
           // ignore
         }
 
+        // Only include properties that are actually defined (avoid assigning `undefined` to optional properties)
+        const tokenInfo: {
+          label?: string;
+          manufacturerId?: string;
+          model?: string;
+          serialNumber?: string;
+        } = {};
+        const labelVal = info.label
+          ? Buffer.isBuffer(info.label)
+            ? info.label.toString('utf8').trim()
+            : String(info.label)
+          : undefined;
+        if (labelVal) tokenInfo.label = labelVal;
+        const manufacturerVal = info.manufacturerID || info.manufacturerId;
+        if (manufacturerVal) tokenInfo.manufacturerId = String(manufacturerVal);
+        const modelVal = info.model
+          ? Buffer.isBuffer(info.model)
+            ? info.model.toString('utf8').trim()
+            : String(info.model)
+          : undefined;
+        if (modelVal) tokenInfo.model = modelVal;
+        const serialVal = info.serialNumber
+          ? Buffer.isBuffer(info.serialNumber)
+            ? info.serialNumber.toString('utf8').trim()
+            : String(info.serialNumber)
+          : undefined;
+        if (serialVal) tokenInfo.serialNumber = serialVal;
+
         return {
           driverPath: driver.path,
           driverName: driver.name,
-          tokenInfo: {
-            label: info.label ? (Buffer.isBuffer(info.label) ? info.label.toString('utf8').trim() : String(info.label)) : undefined,
-            manufacturerId: info.manufacturerID || info.manufacturerId || undefined,
-            model: info.model ? (Buffer.isBuffer(info.model) ? info.model.toString('utf8').trim() : String(info.model)) : undefined,
-            serialNumber: info.serialNumber ? (Buffer.isBuffer(info.serialNumber) ? info.serialNumber.toString('utf8').trim() : String(info.serialNumber)) : undefined,
-          },
+          tokenInfo,
         };
       } catch (error) {
         // try next driver
@@ -715,17 +759,26 @@ export class SignerService {
     try {
       // C_GetTokenInfo may return an object with Buffer/string fields
       const info: any = pkcs11.C_GetTokenInfo(slot);
-      return {
-        label:
-          this.normalizeAttrValue(info.label) ||
-          this.normalizeAttrValue(info.manufacturerID) ||
-          this.normalizeAttrValue(info.tokenLabel),
-        manufacturerId:
-          this.normalizeAttrValue(info.manufacturerID) ||
-          this.normalizeAttrValue(info.manufacturerId),
-        model: this.normalizeAttrValue(info.model),
-        serialNumber: this.normalizeAttrValue(info.serialNumber),
-      };
+      const tokenInfo: {
+        label?: string;
+        manufacturerId?: string;
+        model?: string;
+        serialNumber?: string;
+      } = {};
+      const label =
+        this.normalizeAttrValue(info.label) ||
+        this.normalizeAttrValue(info.manufacturerID) ||
+        this.normalizeAttrValue(info.tokenLabel);
+      if (label) tokenInfo.label = label;
+      const manufacturer =
+        this.normalizeAttrValue(info.manufacturerID) ||
+        this.normalizeAttrValue(info.manufacturerId);
+      if (manufacturer) tokenInfo.manufacturerId = manufacturer;
+      const model = this.normalizeAttrValue(info.model);
+      if (model) tokenInfo.model = model;
+      const serialNumber = this.normalizeAttrValue(info.serialNumber);
+      if (serialNumber) tokenInfo.serialNumber = serialNumber;
+      return tokenInfo;
     } catch (error) {
       return {};
     }

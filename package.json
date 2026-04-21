@@ -1,0 +1,40 @@
+{
+  "name": "my-electron-app",
+  "version": "1.0.0",
+  "main": "electron/main.js",
+  "scripts": {
+    "build:frontend": "cd frontend/ && npm run prod",
+    "build:backend": "cd backend/ && npm run build",
+    "build": "npm run build:frontend && npm run build:backend",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.myapp.app",
+    "asar": true,
+    "files": [
+      "electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/backend/dist",
+        "to": "backend"
+      },
+      {
+        "from": "frontend/frontend/dist/frontend",
+        "to": "frontend"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "get-port": "^7.0.0",
+    "wait-on": "^7.0.0"
+  }
+}
