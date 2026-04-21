@@ -290,4 +290,13 @@ export class DscService {
       timestamp: string;
     }>;
   }
+
+  /**
+   * Retrieve certificate details by posting PIN to backend /get-cert-details
+   */
+  getCertDetails(pin: string): Observable<any> {
+    const formData = new FormData();
+    formData.append('pin', pin);
+    return this.http.post(`${this.apiUrl}/get-cert-details`, formData);
+  }
 }

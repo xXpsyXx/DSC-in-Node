@@ -9,6 +9,20 @@
     </div>
   </div>
 
+  <div *ngIf="showPinDialog()" class="modal-overlay" (click)="showPinDialog.set(false)">
+    <div class="modal-dialog" (click)="$event.stopPropagation()">
+      <h3 class="modal-title">Unlock Certificate</h3>
+      <p class="modal-subtitle">Enter PIN to fetch certificate details.</p>
+      <input [(ngModel)]="pin" type="password" placeholder="PIN" class="modal-input" />
+      <div class="modal-actions">
+        <button (click)="showPinDialog.set(false)" class="btn">Cancel</button>
+        <button (click)="onConfirmPinUnlock()" [disabled]="isUnlocking()" class="btn primary">{{ isUnlocking() ?
+          'Unlocking...' : 'Confirm' }}</button>
+      </div>
+      <div *ngIf="saveMessage()" class="modal-error">{{ saveMessage() }}</div>
+    </div>
+  </div>
+
   <div class="dashboard-grid">
     <section class="panel token-panel">
       <h3 class="panel-title">Token</h3>
@@ -29,12 +43,19 @@
 
       <div class="panel-spacer"></div>
 
+      <div style="padding:12px 0;">
+        <button (click)="openUnlockDialog()" class="reveal">Unlock</button>
+        <button (click)="clearCert()" class="reveal" style="margin-left:8px;">Clear</button>
+      </div>
+
       <h3 class="panel-title">Settings</h3>
       <div class="settings-body">
         <label class="setting-label">PKCS#11 Driver Path</label>
         <div style="display:flex; gap:8px; align-items:center;">
-          <input type="text" [value]="driverPath()" (input)="driverPath.set($any($event.target).value)" placeholder="Select driver path" />
-          <button class="reveal" (click)="saveDriverPath()" [disabled]="saving()">{{ saving() ? 'Saving...' : 'Save' }}</button>
+          <input type="text" [value]="driverPath()" (input)="driverPath.set($any($event.target).value)"
+            placeholder="Select driver path" />
+          <button class="reveal" (click)="saveDriverPath()" [disabled]="saving()">{{ saving() ? 'Saving...' : 'Save'
+            }}</button>
         </div>
         <div style="color:#cfe8ff; font-size:0.9rem; margin-top:6px">{{ saveMessage() }}</div>
 

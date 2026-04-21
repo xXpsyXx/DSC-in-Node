@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DscService } from '../services/dsc.service';
 
-
 @Component({
   selector: 'app-service-dashboard',
   standalone: true,
@@ -14,9 +13,9 @@ import { DscService } from '../services/dsc.service';
 export class ServiceDashboardComponent implements OnInit {
   serviceRunning = signal(true);
   tokenConnected = signal(true);
-  certName = signal('John Doe');
-  serial = signal('1234-5678-90AB-CDEF');
-  validityDate = signal('2024-12-31');
+  certName = signal('-');
+  serial = signal('-');
+  validityDate = signal('-');
   lastAction = signal('Signed PDF successfully.');
 
   logs = signal<Array<{ type: string; text: string }>>([
@@ -32,6 +31,12 @@ export class ServiceDashboardComponent implements OnInit {
   portMasked = signal(true);
   saving = signal(false);
   saveMessage = signal('');
+
+  // Unlock / PIN modal state
+  showPinDialog = signal(false);
+  isUnlocking = signal(false);
+  pin = '';
+  certDetails = signal<any | null>(null);
 
   constructor(private dscService: DscService) {}
 
@@ -54,7 +59,12 @@ export class ServiceDashboardComponent implements OnInit {
         const data = res?.data || res;
         if (!data) return;
         // Prefer generic path, fall back to platform-specific
-        const pkcs11 = data.pkcs11LibraryPath || data.pkcs11LibraryPathWindows || data.pkcs11LibraryPathLinux || data.pkcs11LibraryPathDarwin || '';
+        const pkcs11 =
+          data.pkcs11LibraryPath ||
+          data.pkcs11LibraryPathWindows ||
+          data.pkcs11LibraryPathLinux ||
+          data.pkcs11LibraryPathDarwin ||
+          '';
         this.driverPath.set(pkcs11);
         if (data.port) this.port.set(String(data.port));
       },
@@ -81,8 +91,10 @@ export class ServiceDashboardComponent implements OnInit {
 
         if (data.tokenInfo) {
           const t = data.tokenInfo;
-          if (t.label) this.certName.set(t.label);
-          if (t.serialNumber) this.serial.set(t.serialNumber);
+          // Do not show certificate details by default - user must unlock with PIN
+          // Populate some agent-detected metadata only if explicitly present
+          if (t.label) this.certName.set('-');
+          if (t.serialNumber) this.serial.set('-');
         }
         if (data.agentTime) {
           // Optionally show or use agentTime
@@ -93,6 +105,50 @@ export class ServiceDashboardComponent implements OnInit {
         console.error('Failed to load agent status', err);
       },
     });
+  }
+
+  openUnlockDialog(): void {
+    this.pin = '';
+    this.showPinDialog.set(true);
+  }
+
+  async onConfirmPinUnlock(): Promise<void> {
+    if (!String(this.pin || '').trim()) {
+      this.saveMessage.set('PIN is required');
+      return;
+    }
+
+    this.isUnlocking.set(true);
+    this.saveMessage.set('');
+    this.dscService.getCertDetails(this.pin).subscribe({
+      next: (resp: any) => {
+        const data = resp?.data || resp || {};
+        // Normalize fields
+        const owner = data.ownerName || data.label || data.subject || data.signerName || '-';
+        const serial = data.certSerialNumber || data.serialNumber || data.serial || '-';
+        const expiry = data.certExpiryDate || data.expiryDate || data.expiry || '-';
+
+        this.certDetails.set(data);
+        this.certName.set(owner || '-');
+        this.serial.set(serial || '-');
+        this.validityDate.set(expiry || '-');
+        this.isUnlocking.set(false);
+        this.showPinDialog.set(false);
+        this.pin = '';
+      },
+      error: (err) => {
+        console.error('getCertDetails failed', err);
+        this.saveMessage.set('Failed to retrieve certificate details');
+        this.isUnlocking.set(false);
+      },
+    });
+  }
+
+  clearCert(): void {
+    this.certDetails.set(null);
+    this.certName.set('-');
+    this.serial.set('-');
+    this.validityDate.set('-');
   }
 
   saveDriverPath(): void {
