@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import os from 'os';
-import { getStatusSnapshot } from '../utils/status.store.ts';
+import { getStatusSnapshot, appendLog, getSanitizedLogs } from '../utils/status.store.ts';
 import { SignerService } from '../services/sign.service.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -87,6 +87,17 @@ export const getStatusHandler = async (_req: Request, res: Response) => {
   }
 };
 
+export const getLogsHandler = async (_req: Request, res: Response) => {
+  try {
+    // Return the persisted/sanitized logs (from memory)
+    const logs = getSanitizedLogs();
+    return res.json({ success: true, data: logs });
+  } catch (e) {
+    console.error('[admin] getLogsHandler error:', e);
+    return res.status(500).json({ success: false, error: 'Failed to read logs' });
+  }
+};
+
 /**
  * Update driver path. Expects JSON: { driverPath: string, applyTo?: 'platform'|'generic'|'both' }
  */
@@ -132,5 +143,32 @@ export const updateDriverPathHandler = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[admin] updateDriverPathHandler error:', error);
     return res.status(500).json({ success: false, error: 'Failed to update driver path' });
+  }
+};
+
+/**
+ * Append a server-side log entry. Expects JSON: { type: 'info'|'error'|'success'|'warning', text: string }
+ */
+export const appendLogHandler = async (req: Request, res: Response) => {
+  try {
+    const { type, text } = req.body || {};
+    const t = typeof type === 'string' && ['info', 'error', 'success', 'warning'].includes(type) ? type : 'info';
+    const msg = typeof text === 'string' ? text : JSON.stringify(text || '');
+    appendLog(t as any, msg);
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('[admin] appendLogHandler error:', e);
+    return res.status(500).json({ success: false, error: 'Failed to append log' });
+  }
+};
+
+export const getLogsFileHandler = async (_req: Request, res: Response) => {
+  try {
+    const logsPath = path.join(projectRoot, 'logs', 'logs.json');
+    if (!fs.existsSync(logsPath)) return res.status(404).json({ success: false, error: 'Logs file not found' });
+    return res.download(logsPath, 'logs.json');
+  } catch (e) {
+    console.error('[admin] getLogsFileHandler error:', e);
+    return res.status(500).json({ success: false, error: 'Failed to read logs file' });
   }
 };

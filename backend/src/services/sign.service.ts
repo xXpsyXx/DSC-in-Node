@@ -368,8 +368,23 @@ export class SignerService {
 
         const slots = pkcs11.C_GetSlotList(true);
 
-        // If we can get slots, this driver works
-        pkcs11.C_Finalize();
+        // Only consider this driver a match when slots are present (token inserted)
+        if (!slots || slots.length === 0) {
+          try {
+            pkcs11.C_Finalize();
+          } catch (e) {
+            // ignore finalize errors
+          }
+          // No token for this driver, try next
+          continue;
+        }
+
+        // If we have one or more slots, this driver detected a token
+        try {
+          pkcs11.C_Finalize();
+        } catch (e) {
+          // ignore finalize errors
+        }
 
         console.log(
           `[autoDetectDriver] Detected device: ${driver.name} (${driver.path})`,

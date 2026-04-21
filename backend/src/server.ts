@@ -8,6 +8,7 @@ import adminRoutes from './routes/admin.route.ts';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { appendLog } from './utils/status.store.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -162,6 +163,18 @@ const startServer = (): void => {
   registerRoutes(app);
   // Admin routes for runtime configuration
   app.use('/api/admin', adminRoutes);
+  // Global error logger - capture errors and persist to server-side logs
+  // Note: This middleware should be registered after routes so it catches route errors
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    try {
+      appendLog('error', err?.message || String(err || 'unknown error'));
+    } catch (e) {
+      console.error('[server] Failed to append log:', e);
+    }
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
   registerHealthCheckEndpoint(app);
 
   // Start listening

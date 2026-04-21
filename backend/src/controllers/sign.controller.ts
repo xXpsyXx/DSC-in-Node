@@ -94,11 +94,16 @@ export const getCertDetailsHandler = async (req: Request, res: Response) => {
       const errorMsg = (signError as any).message || '';
       console.error('[getCertDetailsHandler] Error loading signer:', errorMsg);
 
+      // For PIN-related failures, emit a single clear error message
       if (isPinErrorMessage(errorMsg)) {
+        appendLog('error', 'Invalid PIN - Cannot unlock certificate.');
         return res
           .status(401)
           .json({ error: 'Invalid PIN - Cannot unlock certificate.' });
       }
+
+      // Non-PIN failures: record the full failure for diagnostics
+      appendLog('error', `Error loading signer: ${errorMsg}`);
 
       const hardwareError = getHardwareErrorResponse(errorMsg);
       if (hardwareError)
@@ -112,10 +117,14 @@ export const getCertDetailsHandler = async (req: Request, res: Response) => {
     const certStatus = checkCertificateStatus(signer);
     const signerName = signer.getSignerName();
 
+    // Record success of unlock to server logs
+    const ownerName = certDetails.ownerName || signerName || 'Unknown';
+    appendLog('success', `Unlocked certificate: ${ownerName}`);
+
     signer.close();
 
     res.json({
-      ownerName: certDetails.ownerName || signerName,
+      ownerName: ownerName,
       tokenName: tokenInfo.label || tokenInfo.model || 'Unknown',
       pendriveCompany:
         tokenInfo.manufacturerId ||
@@ -128,6 +137,7 @@ export const getCertDetailsHandler = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('[getCertDetailsHandler] Error:', error);
+    appendLog('error', `Unexpected error retrieving certificate details: ${(error as any).message || String(error)}`);
     const errorMsg = (error as any).message || '';
 
     const hardwareError = getHardwareErrorResponse(errorMsg);
@@ -641,7 +651,7 @@ const getCertificateFromSigner = (
 const requestTsaTimestamp = async (hash: string): Promise<Buffer> => {
   console.log('[signHandler] Requesting timestamp from TSA...');
   try {
-    const tsaUrl = process.env.TSA_URL || 'http://timestamp.quovadis.com/tsa';
+    const tsaUrl = process.env.TSA_URL 
     const timestampToken = await TsaService.requestTimestampToken(hash, tsaUrl);
     console.log('[signHandler] Timestamp obtained successfully');
     return timestampToken;
@@ -1325,6 +1335,8 @@ export const autoDetectTokenHandler = async (req: Request, res: Response) => {
 
     if (!detectedDevice) {
       console.warn('[autoDetectTokenHandler] No USB token device detected');
+      // Persist a server-side log entry for visibility in the UI
+      appendLog('error', 'No USB token detected');
       return res.status(404).json({
         detected: false,
         message:

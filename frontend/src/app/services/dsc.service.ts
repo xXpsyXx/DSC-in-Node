@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
-import { Observable, map, from } from 'rxjs';
+import { Observable, map, from, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 
 export interface VerifyEmbeddedSignatureResponse {
@@ -177,6 +177,27 @@ export class DscService {
     return this.http.post(`${this.apiUrl}/admin/driver-path`, { driverPath, applyTo });
   }
 
+  // POST a log entry to the backend admin logs (type: 'info'|'error'|'success'|'warning')
+  postLog(type: 'info' | 'error' | 'success' | 'warning', text: string): Observable<any> {
+    // Disabled client-side persistent logging to avoid frontend modifying server logs.
+    // Backend logs should be written only by the server or explicit admin actions.
+    // Return a harmless observable so callers remain functional.
+    return of({ success: true, skipped: true });
+  }
+
+  // Fetch persisted backend logs (sanitized JSON)
+  getBackendLogs(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/admin/logs`);
+  }
+
+  // Health check against backend root /health
+  healthCheck(): Observable<any> {
+    // apiUrl is like http://host:port/api -> remove trailing /api
+    const base = this.apiUrl.replace(/\/api$/i, '').replace(/\/api$/i, '');
+    const host = base.endsWith('/') ? base.slice(0, -1) : base;
+    return this.http.get(`${host}/health`, { responseType: 'text' as const });
+  }
+
   async getApiErrorInfo(error: unknown): Promise<ApiErrorInfo> {
     if (!(error instanceof HttpErrorResponse)) {
       return {
@@ -297,6 +318,16 @@ export class DscService {
   getCertDetails(pin: string): Observable<any> {
     const formData = new FormData();
     formData.append('pin', pin);
-    return this.http.post(`${this.apiUrl}/get-cert-details`, formData);
+    return this.http.post(`${this.apiUrl}/get-cert-details`, formData).pipe(
+      map((r: any) => {
+        // normalize error-in-200 responses
+        const body = r?.data ?? r;
+        if (body && (body.error || body.success === false || body.message)) {
+          const errMsg = (body.error || body.message || JSON.stringify(body)) as string;
+          throw new Error(errMsg);
+        }
+        return r;
+      }),
+    );
   }
 }
