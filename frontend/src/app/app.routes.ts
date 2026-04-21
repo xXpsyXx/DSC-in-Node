@@ -1,10 +1,8 @@
 import { Routes } from '@angular/router';
-import { PdfSignerComponent } from './components/pdf-signer.component';
-import { VerifySignatureComponent } from './components/verify-signature.component';
+import { ServiceDashboardComponent } from './components/service-dashboard.component';
 
 export const routes: Routes = [
-  { path: '', component: PdfSignerComponent },
-  { path: 'sign', component: PdfSignerComponent },
-  { path: 'verify', component: VerifySignatureComponent },
+  { path: '', component: ServiceDashboardComponent },
+  { path: 'dashboard', component: ServiceDashboardComponent },
   { path: '**', redirectTo: '' },
 ];

@@ -1,0 +1,64 @@
+<div class="dashboard-root">
+  <div class="status-bar">
+    <div class="status-left">
+      <div class="status-indicator" [class.running]="serviceRunning()"></div>
+      <div class="status-text">Service Running</div>
+    </div>
+    <div class="status-actions">
+      <button class="icon-btn">⚙️</button>
+    </div>
+  </div>
+
+  <div class="dashboard-grid">
+    <section class="panel token-panel">
+      <h3 class="panel-title">Token</h3>
+      <div class="token-body">
+        <div class="token-row">
+          <div class="label">Certificate Name</div>
+          <div class="value">{{ certName() }}</div>
+        </div>
+        <div class="token-row">
+          <div class="label">Serial Number</div>
+          <div class="value">{{ serial() }}</div>
+        </div>
+        <div class="token-row">
+          <div class="label">Validity Date</div>
+          <div class="value">{{ validityDate() }}</div>
+        </div>
+      </div>
+
+      <div class="panel-spacer"></div>
+
+      <h3 class="panel-title">Settings</h3>
+      <div class="settings-body">
+        <label class="setting-label">PKCS#11 Driver Path</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="text" [value]="driverPath()" (input)="driverPath.set($any($event.target).value)" placeholder="Select driver path" />
+          <button class="reveal" (click)="saveDriverPath()" [disabled]="saving()">{{ saving() ? 'Saving...' : 'Save' }}</button>
+        </div>
+        <div style="color:#cfe8ff; font-size:0.9rem; margin-top:6px">{{ saveMessage() }}</div>
+
+        <label class="setting-label">Port</label>
+        <div class="port-row">
+          <input type="text" [value]="getDisplayedPort()" readonly />
+          <button class="reveal" (click)="togglePortMasked()">{{ portMasked() ? 'Show' : 'Hide' }}</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel activity-panel">
+      <h3 class="panel-title">Activity</h3>
+      <div class="activity-body">
+        <div class="last-action">Last action: {{ lastAction() }}</div>
+      </div>
+
+      <h3 class="panel-title">Logs</h3>
+      <div class="logs-body">
+        <div *ngFor="let l of logs()" class="log-row">
+          <span class="log-dot" [ngClass]="l.type"></span>
+          <span class="log-text">{{ l.text }}</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

@@ -3,6 +3,7 @@ import cors from 'cors';
 
 import signRoutes from './routes/sign.route.ts';
 import keysRoutes from './routes/keys.route.ts';
+import adminRoutes from './routes/admin.route.ts';
 
 import dotenv from 'dotenv';
 import path from 'path';
@@ -159,6 +160,8 @@ const startServer = (): void => {
 
   // Register routes and endpoints
   registerRoutes(app);
+  // Admin routes for runtime configuration
+  app.use('/api/admin', adminRoutes);
   registerHealthCheckEndpoint(app);
 
   // Start listening

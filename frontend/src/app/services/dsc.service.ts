@@ -162,6 +162,21 @@ export class DscService {
     return this.http.get(`${this.apiUrl}/auto-detect-token`);
   }
 
+  // Get backend agent configuration (port, pkcs11 paths, etc.)
+  getAgentConfig(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/admin/config`);
+  }
+
+  // Get agent runtime status (logs, lastAction, masked driverPath)
+  getAgentStatus(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/admin/status`);
+  }
+
+  // Update the PKCS#11 driver path on the backend. applyTo: 'platform'|'generic'|'both'
+  updateDriverPath(driverPath: string, applyTo: string | undefined = 'platform'): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/driver-path`, { driverPath, applyTo });
+  }
+
   async getApiErrorInfo(error: unknown): Promise<ApiErrorInfo> {
     if (!(error instanceof HttpErrorResponse)) {
       return {

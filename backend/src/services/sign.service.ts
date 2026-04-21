@@ -389,6 +389,60 @@ export class SignerService {
   }
 
   /**
+   * Probe token info (token label, manufacturer, model, serial) using supported drivers.
+   * Does not require PIN. Returns first found token info along with driver metadata.
+   */
+  static probeTokenInfo():
+    | { driverPath: string; driverName: string; tokenInfo: { label?: string; manufacturerId?: string; model?: string; serialNumber?: string } }
+    | null {
+    const drivers = this.getSupportedDrivers();
+
+    for (const driver of drivers) {
+      try {
+        const pkcs11 = new pkcs11js.PKCS11();
+        pkcs11.load(driver.path);
+        pkcs11.C_Initialize();
+
+        const slots = pkcs11.C_GetSlotList(true);
+        if (!slots.length) {
+          pkcs11.C_Finalize();
+          continue;
+        }
+
+        const slot = slots[0];
+        // Try to read token info without logging in
+        let info: any = {};
+        try {
+          info = pkcs11.C_GetTokenInfo(slot) || {};
+        } catch (e) {
+          // ignore
+        }
+
+        try {
+          pkcs11.C_Finalize();
+        } catch {
+          // ignore
+        }
+
+        return {
+          driverPath: driver.path,
+          driverName: driver.name,
+          tokenInfo: {
+            label: info.label ? (Buffer.isBuffer(info.label) ? info.label.toString('utf8').trim() : String(info.label)) : undefined,
+            manufacturerId: info.manufacturerID || info.manufacturerId || undefined,
+            model: info.model ? (Buffer.isBuffer(info.model) ? info.model.toString('utf8').trim() : String(info.model)) : undefined,
+            serialNumber: info.serialNumber ? (Buffer.isBuffer(info.serialNumber) ? info.serialNumber.toString('utf8').trim() : String(info.serialNumber)) : undefined,
+          },
+        };
+      } catch (error) {
+        // try next driver
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Select a token slot from available slots.
    * Uses PKCS11_SLOT_INDEX environment variable if set, otherwise defaults to first slot.
    * @access private

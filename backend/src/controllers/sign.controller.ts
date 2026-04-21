@@ -17,6 +17,7 @@ import {
   isUsbTokenErrorMessage,
   getHardwareErrorResponse,
 } from '../utils/error-handlers.ts';
+import { appendLog, setLastAction } from '../utils/status.store.ts';
 
 let verifyService: VerifyService | null = null;
 
@@ -853,6 +854,7 @@ export const signHandler = async (req: Request, res: Response) => {
     console.log(
       `[signHandler] Processing file: ${uploadedFile.originalFilename}`,
     );
+    appendLog('info', `Processing file: ${uploadedFile.originalFilename}`);
     if (driverPath)
       console.log(`[signHandler] Using custom driver: ${driverPath}`);
 
@@ -879,6 +881,7 @@ export const signHandler = async (req: Request, res: Response) => {
     console.log(
       `[signHandler] Certificate status: ${certStatus.status} (${certStatus.daysRemaining} days remaining)`,
     );
+    appendLog('info', `Certificate status: ${certStatus.status} (${certStatus.daysRemaining} days)`);
 
     const certError = validateCertificateStatus(certStatus, signer);
     if (certError) return res.status(certError.status).json(certError.body);
@@ -896,10 +899,12 @@ export const signHandler = async (req: Request, res: Response) => {
     let signedPdfBytes = await savePdfToBuffer(pdfDoc);
     validatePdfStructure(signedPdfBytes);
     console.log(`[signHandler] PDF saved: ${signedPdfBytes.length} bytes`);
+    appendLog('info', `PDF saved: ${signedPdfBytes.length} bytes`);
 
     // Hash and sign
     const hash = HashService.hashBuffer(signedPdfBytes);
     console.log(`[signHandler] Signed PDF hash: ${hash}`);
+    appendLog('info', `Signed PDF hash: ${hash}`);
 
     const rsaSignatureBase64 = signPdfHash(signer, hash);
     const certificate = getCertificateFromSigner(signer);
@@ -962,10 +967,14 @@ export const signHandler = async (req: Request, res: Response) => {
     console.log(
       `[signHandler] Sending PDF with PKCS#7/CMS signature and TSA timestamp: ${signedFileName}`,
     );
+    appendLog('success', 'Signed PDF successfully.');
+    setLastAction('Signed PDF successfully.');
     res.send(finalSignedPdfBuffer);
   } catch (error) {
     console.error('[signHandler] Error:', error);
     const errorMsg = (error as any).message || '';
+
+    appendLog('error', `Failed to sign file: ${errorMsg}`);
 
     const hardwareError = getHardwareErrorResponse(errorMsg);
     if (hardwareError)
@@ -1018,6 +1027,7 @@ export const verifyHandler = async (req: Request, res: Response) => {
     console.log(
       `[verifyHandler] Verifying file: ${uploadedFile.originalFilename}`,
     );
+    appendLog('info', `Verifying file: ${uploadedFile.originalFilename}`);
 
     const fileBuffer = fs.readFileSync(uploadedFile.filepath);
     tempFilePath = uploadedFile.filepath;
@@ -1146,6 +1156,7 @@ export const verifyHandler = async (req: Request, res: Response) => {
       console.log(
         `[verifyHandler] Verification: ${isValid} (crypto=${cryptographicallyValid}, hashMismatch=${hashMismatch}, hmac=${hmacValid})`,
       );
+      appendLog(isValid ? 'success' : 'error', `Verification result: ${isValid ? 'valid' : 'invalid'} - ${verificationMsg}`);
     } catch (verifyError) {
       console.error('[verifyHandler] Verification error:', verifyError);
       isValid = false;
@@ -1176,6 +1187,8 @@ export const verifyHandler = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[verifyHandler] Error:', error);
     const errorMsg = (error as any).message || '';
+
+    appendLog('error', `Verification failed: ${errorMsg}`);
 
     const hardwareError = getHardwareErrorResponse(errorMsg);
     if (hardwareError)
@@ -1322,6 +1335,7 @@ export const autoDetectTokenHandler = async (req: Request, res: Response) => {
     console.log(
       `[autoDetectTokenHandler] Device detected: ${detectedDevice.driverName}`,
     );
+    appendLog('info', `USB token detected: ${detectedDevice.driverName}`);
     res.json({
       detected: true,
       driverName: detectedDevice.driverName,
@@ -1330,6 +1344,7 @@ export const autoDetectTokenHandler = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('[autoDetectTokenHandler] Error:', error);
+    appendLog('error', `Auto-detect failed: ${(error as Error).message}`);
     res.status(500).json({
       detected: false,
       error: 'Failed to auto-detect USB token',
