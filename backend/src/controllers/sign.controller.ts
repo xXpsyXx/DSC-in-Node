@@ -137,7 +137,10 @@ export const getCertDetailsHandler = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('[getCertDetailsHandler] Error:', error);
-    appendLog('error', `Unexpected error retrieving certificate details: ${(error as any).message || String(error)}`);
+    appendLog(
+      'error',
+      `Unexpected error retrieving certificate details: ${(error as any).message || String(error)}`,
+    );
     const errorMsg = (error as any).message || '';
 
     const hardwareError = getHardwareErrorResponse(errorMsg);
@@ -651,7 +654,7 @@ const getCertificateFromSigner = (
 const requestTsaTimestamp = async (hash: string): Promise<Buffer> => {
   console.log('[signHandler] Requesting timestamp from TSA...');
   try {
-    const tsaUrl = process.env.TSA_URL 
+    const tsaUrl = process.env.TSA_URL;
     const timestampToken = await TsaService.requestTimestampToken(hash, tsaUrl);
     console.log('[signHandler] Timestamp obtained successfully');
     return timestampToken;
@@ -891,7 +894,10 @@ export const signHandler = async (req: Request, res: Response) => {
     console.log(
       `[signHandler] Certificate status: ${certStatus.status} (${certStatus.daysRemaining} days remaining)`,
     );
-    appendLog('info', `Certificate status: ${certStatus.status} (${certStatus.daysRemaining} days)`);
+    appendLog(
+      'info',
+      `Certificate status: ${certStatus.status} (${certStatus.daysRemaining} days)`,
+    );
 
     const certError = validateCertificateStatus(certStatus, signer);
     if (certError) return res.status(certError.status).json(certError.body);
@@ -899,6 +905,41 @@ export const signHandler = async (req: Request, res: Response) => {
     const certWarning = extractCertificateWarning(certStatus);
     const signerName = signer.getSignerName();
     const signedAt = new Date();
+
+    // === Certificate serial binding check ===
+    try {
+      const expectedSerial =
+        (req as any).signPayload?.certSerial ||
+        (req as any).signPayload?.cert_serial ||
+        (req as any).signPayload?.expectedCertSerial;
+      if (expectedSerial) {
+        const certDetails = signer.getCertificateDetails();
+        const actualSerial = certDetails.serialNumber || null;
+        const normalize = (s: string | null | undefined) =>
+          (s || '').replace(/^0+/, '').toLowerCase();
+
+        if (
+          !actualSerial ||
+          normalize(actualSerial) !== normalize(expectedSerial)
+        ) {
+          // Prevent signing if user's linked cert does not match token-present certificate
+          appendLog(
+            'error',
+            `Certificate serial mismatch (expected=${expectedSerial}, actual=${actualSerial})`,
+          );
+          signer.close();
+          return res.status(403).json({
+            error:
+              'Certificate serial mismatch - the inserted certificate is not linked to the signing user',
+            code: 'CERT_NOT_LINKED',
+            userMessage:
+              "This certificate doesn't belong to your account. If this is your certificate, please register it in the web app (Digital Signature → My Certificates) and try again.",
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[signHandler] cert serial check error:', e);
+    }
 
     // Modify PDF
     const pdfDoc = await loadPdfDocument(fileBuffer);
@@ -1166,7 +1207,10 @@ export const verifyHandler = async (req: Request, res: Response) => {
       console.log(
         `[verifyHandler] Verification: ${isValid} (crypto=${cryptographicallyValid}, hashMismatch=${hashMismatch}, hmac=${hmacValid})`,
       );
-      appendLog(isValid ? 'success' : 'error', `Verification result: ${isValid ? 'valid' : 'invalid'} - ${verificationMsg}`);
+      appendLog(
+        isValid ? 'success' : 'error',
+        `Verification result: ${isValid ? 'valid' : 'invalid'} - ${verificationMsg}`,
+      );
     } catch (verifyError) {
       console.error('[verifyHandler] Verification error:', verifyError);
       isValid = false;
