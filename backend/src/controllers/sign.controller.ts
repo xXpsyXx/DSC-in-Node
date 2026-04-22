@@ -655,6 +655,11 @@ const requestTsaTimestamp = async (hash: string): Promise<Buffer> => {
   console.log('[signHandler] Requesting timestamp from TSA...');
   try {
     const tsaUrl = process.env.TSA_URL;
+    if (!tsaUrl) {
+      console.error('[signHandler] TSA_URL not configured - timestamp authority is required');
+      throw new Error('TSA_URL_NOT_CONFIGURED: TSA_URL environment variable is not set');
+    }
+
     const timestampToken = await TsaService.requestTimestampToken(hash, tsaUrl);
     console.log('[signHandler] Timestamp obtained successfully');
     return timestampToken;
@@ -1035,6 +1040,15 @@ export const signHandler = async (req: Request, res: Response) => {
       return res.status(401).json({
         error:
           'Invalid PIN - Cannot unlock certificate. Please check your PIN and try again.',
+      });
+    }
+
+    if (typeof errorMsg === 'string' && errorMsg.includes('TSA_URL_NOT_CONFIGURED')) {
+      // Dedicated error when TSA is not configured — this is a configuration issue
+      appendLog('error', 'TSA_URL not configured - cannot proceed with signing');
+      return res.status(503).json({
+        error:
+          'Timestamp Authority not configured (TSA_URL missing). Cannot create legally-valid signatures.',
       });
     }
 

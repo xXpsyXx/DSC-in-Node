@@ -1,10 +1,17 @@
 const { app, BrowserWindow } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { spawn } = require("child_process");
 const waitOn = require("wait-on");
 const getPort = require("get-port");
 
 let backendProcess;
+
+// logger: in dev use console, in packaged builds we'll replace with file logger
+let logger = {
+  info: (...args) => console.log(...args),
+  error: (...args) => console.error(...args),
+};
 
 async function startBackend() {
   const port = await getPort({ port: 3000 });
@@ -15,16 +22,41 @@ async function startBackend() {
     ? path.join(__dirname, "../backend/dist/main.js")
     : path.join(process.resourcesPath, "backend/main.js");
 
-  backendProcess = spawn(process.execPath, [backendPath], {
+  const spawnOptions = {
     env: { ...process.env, PORT: port },
+  };
+
+  // In packaged builds avoid piping child stdio to the main process (no console)
+  if (!isDev) spawnOptions.stdio = "ignore";
+
+  backendProcess = spawn(process.execPath, [backendPath], spawnOptions);
+
+  // Only attach stdout/stderr listeners in dev where console is available
+  if (isDev) {
+    backendProcess.stdout && backendProcess.stdout.on("data", (data) => {
+      logger.info(`Nest: ${data.toString()}`);
+    });
+
+    backendProcess.stdout && backendProcess.stdout.on("error", (err) => {
+      if (!err || err.code !== "EPIPE") logger.error(`Nest stdout error: ${err}`);
+    });
+
+    backendProcess.stderr && backendProcess.stderr.on("data", (data) => {
+      logger.error(`Nest ERROR: ${data.toString()}`);
+    });
+
+    backendProcess.stderr && backendProcess.stderr.on("error", (err) => {
+      if (!err || err.code !== "EPIPE") logger.error(`Nest stderr error: ${err}`);
+    });
+  }
+
+  backendProcess.on("exit", (code, signal) => {
+    logger.info(`Backend exited${code !== null ? ` code=${code}` : ""}${signal ? ` signal=${signal}` : ""}`);
+    backendProcess = null;
   });
 
-  backendProcess.stdout.on("data", (data) => {
-    console.log(`Nest: ${data}`);
-  });
-
-  backendProcess.stderr.on("data", (data) => {
-    console.error(`Nest ERROR: ${data}`);
+  backendProcess.on("error", (err) => {
+    logger.error(`Backend process error: ${err}`);
   });
 
   // wait for backend
@@ -60,10 +92,23 @@ async function createWindow(port) {
 }
 
 app.whenReady().then(async () => {
+  // in packaged builds write logs to a file under userData to avoid stdout/stderr EPIPE
+  if (app.isPackaged) {
+    const logFile = path.join(app.getPath("userData"), "main.log");
+    logger = {
+      info: (...args) => fs.appendFile(logFile, args.map(String).join(" ") + "\n", () => {}),
+      error: (...args) => fs.appendFile(logFile, "ERROR: " + args.map(String).join(" ") + "\n", () => {}),
+    };
+  }
+
   const port = await startBackend();
   await createWindow(port);
 });
 
-app.on("will-quit", () => {
-  if (backendProcess) backendProcess.kill();
+app.on("before-quit", () => {
+  if (backendProcess) {
+    // send SIGINT so the backend can run graceful shutdown handlers
+    backendProcess.kill("SIGINT");
+    backendProcess = null;
+  }
 });

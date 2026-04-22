@@ -3,34 +3,27 @@ import axios from 'axios';
 
 /**
  * RFC 3161 Timestamp Authority (TSA) integration.
- * Prevents backdating attacks by requesting cryptographically signed timestamps.
- * Uses free public TSA endpoints (Quovadis, Certum, etc).
+ * Requires an explicit TSA URL via `TSA_URL` environment variable.
+ * No automatic fallback to public endpoints is performed.
  */
 export class TsaService {
-  // Default free public TSA endpoints (add more if needed)
-  private static readonly DEFAULT_TSA_URLS = [
-    'http://timestamp.quovadis.com/tsa', // Quovadis (free)
-    'http://time.certum.pl', // Certum (free)
-    'http://tsa.safestamper.com', // Safestamper (free)
-  ] as const;
-
   /**
    * Request a timestamp from TSA for the given data hash.
-   * Returns ASN.1 encoded TimeStampToken suitable for embedding in PDF signature.
    * @param dataHash - SHA256 hash (hex string) to timestamp
-   * @param tsaUrl - Optional custom TSA URL (uses default if not provided)
+   * @param tsaUrl - REQUIRED TSA URL. If omitted, this will throw.
    * @returns TimeStampToken as Buffer (DER-encoded)
    */
   static async requestTimestampToken(
     dataHash: string,
     tsaUrl?: string | null,
   ): Promise<Buffer> {
-    let url: string;
-    if (tsaUrl && tsaUrl.length > 0) {
-      url = tsaUrl;
-    } else {
-      url = this.DEFAULT_TSA_URLS[0]!;
+    if (!tsaUrl) {
+      throw new Error(
+        'TSA_URL_NOT_CONFIGURED: TSA_URL environment variable must be set',
+      );
     }
+
+    const url = tsaUrl;
 
     try {
       // Convert hex hash to buffer

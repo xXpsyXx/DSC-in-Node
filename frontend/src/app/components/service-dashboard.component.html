@@ -1,31 +1,35 @@
 <div class="dashboard-root">
-  <div class="response-popup" *ngIf="responseVisible()" [ngClass]="responseType()">
-    <button class="response-close" (click)="closeResponse()">✕</button>
-    <div class="response-content">{{ responseMessage() }}</div>
-  </div>
+  @if (responseVisible()) {
+    <div class="response-popup" [ngClass]="responseType()">
+      <button class="response-close" (click)="closeResponse()">✕</button>
+      <div class="response-content">{{ responseMessage() }}</div>
+    </div>
+  }
   <!-- status indicator moved into panels for compact layout -->
 
-  <div *ngIf="showPinDialog()" class="modal-overlay" (click)="showPinDialog.set(false)">
-    <div class="modal-dialog" (click)="$event.stopPropagation()">
-      <h3 class="modal-title">Unlock Certificate</h3>
-      <p class="modal-subtitle">Enter PIN to fetch certificate details.</p>
-      <input [(ngModel)]="pin" type="password" placeholder="PIN" class="modal-input" />
-      <div class="modal-actions">
-        <button (click)="showPinDialog.set(false)" class="btn">Cancel</button>
-        <button (click)="onConfirmPinUnlock()" [disabled]="isUnlocking()" class="btn primary">{{ isUnlocking() ?
+  @if (showPinDialog()) {
+    <div class="modal-overlay" (click)="showPinDialog.set(false)">
+      <div class="modal-dialog" (click)="$event.stopPropagation()">
+        <h3 class="modal-title">Unlock Certificate</h3>
+        <p class="modal-subtitle">Enter PIN to fetch certificate details.</p>
+        <input [(ngModel)]="pin" type="password" placeholder="PIN" class="modal-input" />
+        <div class="modal-actions">
+          <button (click)="showPinDialog.set(false)" class="btn">Cancel</button>
+          <button (click)="onConfirmPinUnlock()" [disabled]="isUnlocking()" class="btn primary">{{ isUnlocking() ?
           'Unlocking...' : 'Confirm' }}</button>
+        </div>
       </div>
     </div>
-  </div>
+  }
 
   <div class="dashboard-grid">
     <section class="panel token-panel">
-        <h3 class="panel-title">
-          <span class="title-left">
-            <span class="title-text">Token</span>
-          </span>
-            <span class="panel-status-label" [ngClass]="tokenConnected() ? 'green' : 'red'">{{ statusLabel() }}</span>
-        </h3>
+      <h3 class="panel-title">
+        <span class="title-left">
+          <span class="title-text">Token</span>
+        </span>
+        <span class="panel-status-label" [ngClass]="tokenConnected() ? 'green' : 'red'">{{ statusLabel() }}</span>
+      </h3>
       <div class="token-body">
         <div class="token-row">
           <div class="label">Certificate Name</div>
@@ -38,8 +42,11 @@
         <div class="token-row">
           <div class="label">Validity Date</div>
           <div class="value" [class.expired]="isValidityExpired()">
-            <ng-container *ngIf="isValidityExpired(); else okDate">Expired</ng-container>
-            <ng-template #okDate>{{ getFormattedValidityDate() }}</ng-template>
+            @if (isValidityExpired()) {
+              Expired
+            } @else {
+              {{ getFormattedValidityDate() }}
+            }
           </div>
         </div>
       </div>
@@ -54,40 +61,43 @@
         <label class="setting-label">PKCS#11 Driver Path</label>
         <input class="driver-input" type="text" [value]="driverPath()" (input)="driverPath.set($any($event.target).value)"
           placeholder="Select driver path" />
-        <input #driverFileInput type="file" style="display:none" (change)="onDriverFileSelected($event)" />
-        <div style="display:flex; gap:8px; margin-top:8px;">
-          <button class="reveal" type="button" (click)="driverFileInput.click()">Browse</button>
-          <button class="reveal" (click)="saveDriverPath()" [disabled]="saving()">{{ saving() ? 'Saving...' : 'Save' }}</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel activity-panel">
-      <h3 class="panel-title">
-        <span class="title-left">
-          <span class="title-text">Logs</span>
-        </span>
-        <button class="refresh-inline" [disabled]="tokenDetecting()" [title]="tokenDetecting() ? 'Detecting...' : 'Auto-detect token'" (click)="autoDetectToken()" aria-label="Auto-detect token">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="refresh-svg" focusable="false" aria-hidden="true">
-            <path d="M23 4v6h-6" stroke="#cfe8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M1 20v-6h6" stroke="#cfe8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M3.51 9a9 9 0 0114.13-3.36L23 10" stroke="#cfe8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M20.49 15a9 9 0 01-14.13 3.36L1 14" stroke="#cfe8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-      </h3>
-      <div class="logs-body">
-        <div *ngIf="logs() && logs().length > 0; else noLogs">
-          <div *ngFor="let l of logs()" class="log-row">
-            <span class="log-dot" [ngClass]="l.type"></span>
-            <span class="log-ts">{{ l.timestamp }}</span>
-            <span class="log-text">{{ l.text }}</span>
+          <input #driverFileInput type="file" style="display:none" (change)="onDriverFileSelected($event)" />
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="reveal" type="button" (click)="driverFileInput.click()">Browse</button>
+            <button class="reveal" (click)="saveDriverPath()" [disabled]="saving()">{{ saving() ? 'Saving...' : 'Save' }}</button>
           </div>
         </div>
-        <ng-template #noLogs>
-          <div class="no-logs">No logs to display</div>
-        </ng-template>
-      </div>
-    </section>
+      </section>
+
+      <section class="panel activity-panel">
+        <h3 class="panel-title">
+          <span class="title-left">
+            <span class="title-text">Logs</span>
+          </span>
+          <button class="refresh-inline" [disabled]="tokenDetecting()" [title]="tokenDetecting() ? 'Detecting...' : 'Auto-detect token'" (click)="autoDetectToken()" aria-label="Auto-detect token">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="refresh-svg" focusable="false" aria-hidden="true">
+              <path d="M23 4v6h-6" stroke="#cfe8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M1 20v-6h6" stroke="#cfe8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M3.51 9a9 9 0 0114.13-3.36L23 10" stroke="#cfe8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M20.49 15a9 9 0 01-14.13 3.36L1 14" stroke="#cfe8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </h3>
+        <div class="logs-body">
+          @if (logs() && logs().length > 0) {
+            <div>
+              @for (l of logs(); track l) {
+                <div class="log-row">
+                  <span class="log-dot" [ngClass]="l.type"></span>
+                  <span class="log-ts">{{ l.timestamp }}</span>
+                  <span class="log-text">{{ l.text }}</span>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="no-logs">No logs to display</div>
+          }
+        </div>
+      </section>
+    </div>
   </div>
-</div>
