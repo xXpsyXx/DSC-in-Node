@@ -32,20 +32,42 @@ const loadEnvironmentVariables = (): void => {
  * @returns {express.Express} Express app with CORS configured
  * @since 1.0.0
  */
-const configureCorsMiddleware = (app: express.Express): void => {
-  app.use(
-    cors({
-      origin: true,
-      credentials: true,
-      exposedHeaders: [
-        'X-File-Hash',
-        'X-File-Signature',
-        'X-Signed-Date',
-        'X-PKCS7-Signature',
-        'X-Signature-Format',
-      ],
-    }),
-  );
+const configureCorsMiddleware = (
+  app: express.Express,
+  frontendEnv?: string,
+): void => {
+  // frontendEnv may be a single origin or a comma-separated list of origins
+  let originOption: cors.CorsOptions['origin'] | boolean = true;
+  if (frontendEnv) {
+    const allowed = frontendEnv
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    originOption = allowed.length === 1 ? allowed[0] : allowed;
+  }
+
+  const corsOptions: cors.CorsOptions = {
+    origin: originOption,
+    credentials: true,
+    exposedHeaders: [
+      'X-File-Hash',
+      'X-File-Signature',
+      'X-Signed-Date',
+      'X-PKCS7-Signature',
+      'X-Signature-Format',
+    ],
+  };
+
+  app.use(cors(corsOptions));
+
+  if (frontendEnv) {
+    const originsLog = Array.isArray(originOption)
+      ? originOption.join(', ')
+      : originOption;
+    console.log(`[server] CORS allowed origins: ${originsLog}`);
+  } else {
+    console.log('[server] CORS origin: any (origin=true)');
+  }
 };
 
 /**
@@ -155,8 +177,13 @@ const startServer = (): void => {
   const app = express();
   const port = getServerPort();
 
-  // Configure middleware
-  configureCorsMiddleware(app);
+  // Compute frontend origin from env and configure middleware
+  const frontendUrl =
+    process.env.FRONTEND_URL ||
+    (process.env.FRONTEND_PORT
+      ? `http://localhost:${process.env.FRONTEND_PORT}`
+      : undefined);
+  configureCorsMiddleware(app, frontendUrl);
   configureJsonParser(app);
 
   // Register routes and endpoints

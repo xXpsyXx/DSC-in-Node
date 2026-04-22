@@ -336,7 +336,7 @@ src/app/
 ### Active Backend Services (✅ Implemented & Working)
 
 - **Backend Helper:** Express.js on Port 45763 with Request Auth
-- **Frontend:** Angular standalone components on Port 4200
+- **Frontend:** Angular standalone components on Port 45760
 - **TSA Integration:** Quovadis free timestamp authority
 - **PKCS#7/CMS:** RFC 2630/5652 compliant signature containers
 
@@ -658,7 +658,7 @@ If TSA fails:
 
 ### Test Full Signing Flow
 
-1. Open http://localhost:4200
+1. Open http://localhost:45760
 2. Select a PDF file
 3. Click "Sign PDF"
 4. Enter PIN
@@ -1769,9 +1769,10 @@ No Device (404):
 
 ### What Was Implemented Today
 
-✅ **Phase 2.1: Security & Legal Compliance** 
+✅ **Phase 2.1: Security & Legal Compliance**
 
 **1. Timestamp Authority (TSA) - RFC 3161**
+
 - Service: `src/services/tsa.service.ts` (NEW)
 - Endpoint: Quovadis (http://timestamp.quovadis.com/tsa)
 - Feature: Cryptographic proof of signature time
@@ -1779,6 +1780,7 @@ No Device (404):
 - Critical: NO FALLBACK - signing fails if TSA unavailable
 
 **2. PKCS#7/CMS Signatures - RFC 2630/5652**
+
 - Service: `src/services/pkcs7-signer.service.ts` (UPDATED)
 - Feature: Industry-standard signature container
 - Contents: RSA signature + certificate + TSA timestamp
@@ -1786,6 +1788,7 @@ No Device (404):
 - Legal: Authenticated attributes + timestamp = valid signature
 
 **3. Request Authentication - HMAC-SHA256**
+
 - Middleware: `src/middleware/request-signer.middleware.ts` (NEW)
 - Protection: Frontend must sign requests to /sign endpoint
 - Headers: X-Request-Signature + X-Request-Timestamp
@@ -1795,6 +1798,7 @@ No Device (404):
 ### Files Changed/Created
 
 **Backend:**
+
 - ✅ NEW: `src/services/tsa.service.ts` - TSA integration
 - ✅ NEW: `src/middleware/request-signer.middleware.ts` - Request auth
 - ✅ UPDATED: `src/services/pkcs7-signer.service.ts` - PKCS#7/CMS
@@ -1805,6 +1809,7 @@ No Device (404):
 - ✅ NEW: `BACKEND_SECURITY.md` - Architecture & security
 
 **Frontend:**
+
 - ✅ UPDATED: `src/app/services/dsc.service.ts` - Request signing
 - ✅ NEW: `src/app/services/request-signer.service.ts` - Utilities
 
@@ -1829,6 +1834,7 @@ REQUEST_SIGNER_TOLERANCE=300000
 ### Testing
 
 Manual curl test:
+
 ```bash
 TIMESTAMP=$(date +%s)000
 SIGNATURE=$(echo -n "POST\n/api/sign\n${TIMESTAMP}" | \
@@ -1839,27 +1845,29 @@ curl -H "X-Request-Signature: ${SIGNATURE}" \
 ```
 
 Full flow test:
-1. Open http://localhosthost:4200
+
+1. Open http://localhost:45760
 2. Select PDF
 3. Click Sign
-4. Enter PIN  
+4. Enter PIN
 5. Confirm certificate
 6. See signature embedded with TSA timestamp
 7. Download signed PDF
 
 ### Security Improvements
 
-| Before | After |
-|--------|-------|
-| No timestamp | RFC 3161 timestamp from TSA |
-| Custom signature format | PKCS#7/CMS container |
-| No request auth | HMAC-SHA256 request signing |
-| Anyone can call /sign | Only authorized frontend |
-| Timing attack vulnerable | Constant-time comparison |
+| Before                   | After                       |
+| ------------------------ | --------------------------- |
+| No timestamp             | RFC 3161 timestamp from TSA |
+| Custom signature format  | PKCS#7/CMS container        |
+| No request auth          | HMAC-SHA256 request signing |
+| Anyone can call /sign    | Only authorized frontend    |
+| Timing attack vulnerable | Constant-time comparison    |
 
 ### Production Readiness
 
 ✅ **Ready for Production:**
+
 - Cryptographic signing with USB token
 - Legal timestamp from recognized authority
 - Request authentication prevents unauthorized access
@@ -1868,6 +1876,7 @@ Full flow test:
 - Documentation is complete
 
 ⚠️ **Before Production Deployment:**
+
 1. Generate production secrets: `openssl rand -hex 32`
 2. Configure identical secrets on frontend + backend
 3. Enable HTTPS (required for security)
@@ -1879,6 +1888,7 @@ Full flow test:
 ### Next Phases (Phase 2.2+)
 
 **Optional Hardening:**
+
 - Rate Limiting: `express-rate-limit` (installed, ready)
 - JWT Auth: `jsonwebtoken` (installed, ready)
 - Audit Logging: `winston` (installed, ready)
@@ -1888,6 +1898,7 @@ Full flow test:
 ## 🎓 KEY LEARNINGS FROM IMPLEMENTATION
 
 ### What Works Well
+
 1. TSA endpoint selection (Quovadis is reliable)
 2. PKCS#7 ASN.1 structure via node-forge
 3. Web Crypto API for browser-safe HMAC
@@ -1896,6 +1907,7 @@ Full flow test:
 6. Request middleware pattern in Express
 
 ### What Needed Care
+
 1. PDF type casting (Uint8Array → Buffer)
 2. TSA timestamp placement in PKCS#7 unsigned attributes
 3. Timing attack prevention (crypto.timingSafeEqual)
@@ -1903,6 +1915,7 @@ Full flow test:
 5. Request path matching ("POST\n/api/sign\n...")
 
 ### Architecture Patterns Used
+
 1. **Middleware pattern**: Request auth validated before route handler
 2. **Service pattern**: TSA, PKCS#7, etc. as reusable services
 3. **Observable pattern**: RxJS switchMap for async request signing
@@ -1914,6 +1927,7 @@ Full flow test:
 ## 📖 FOR PDF EXPORT
 
 This memory file contains:
+
 - Complete feature summaries
 - Code implementations details
 - Architecture diagrams (text-based)
@@ -1923,6 +1937,7 @@ This memory file contains:
 - Compliance information
 
 Suitable for:
+
 - Technical documentation
 - Architecture review
 - Security audit
@@ -1933,4 +1948,3 @@ Word count: ~8,000+ words
 Sections: 30+
 Code examples: 15+
 Diagrams: 3
-

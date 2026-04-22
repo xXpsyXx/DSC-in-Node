@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "node node_modules/@angular/cli/bin/ng.js",
-    "start": "ng serve",
+    "start": "ng serve --port 45760",
     "build": "node node_modules/@angular/cli/bin/ng.js build",
     "watch": "node node_modules/@angular/cli/bin/ng.js build --watch --configuration development",
     "test": "node node_modules/@angular/cli/bin/ng.js test",
