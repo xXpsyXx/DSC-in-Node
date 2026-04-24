@@ -405,6 +405,8 @@ const addSignatureStampToPage = async (
   page: PDFPage,
   signerName: string,
   signedAt: Date,
+  signatureX?: number,
+  signatureY?: number,
 ): Promise<void> => {
   const headerLines = [
     'Signature valid',
@@ -437,8 +439,16 @@ const addSignatureStampToPage = async (
   const boxWidth = maxTextWidth + padding * 2;
   const boxHeight = headerLines.length * lineHeight + 8 + padding * 2;
   const { width } = page.getSize();
-  const boxX = width - boxWidth - margin;
-  const boxY = margin;
+
+  // Default placement: top-right-ish (calculated from page width and margin)
+  const defaultBoxX = width - boxWidth - margin;
+  const defaultBoxY = margin;
+
+  // If explicit coordinates provided (from request), use them — allow 0 values.
+  const boxX =
+    signatureX !== undefined && signatureX !== null ? signatureX : defaultBoxX;
+  const boxY =
+    signatureY !== undefined && signatureY !== null ? signatureY : defaultBoxY;
 
   // Draw border
   drawDashedBorder(page, boxX, boxY, boxWidth, boxHeight);
@@ -473,10 +483,19 @@ const addSignatureMetadataToPdf = async (
   pdfDoc: PDFDocument,
   signerName: string,
   signedAt: Date,
+  signatureX?: number,
+  signatureY?: number,
 ): Promise<void> => {
   const targetPage = getLastPdfPage(pdfDoc);
   if (targetPage) {
-    await addSignatureStampToPage(pdfDoc, targetPage, signerName, signedAt);
+    await addSignatureStampToPage(
+      pdfDoc,
+      targetPage,
+      signerName,
+      signedAt,
+      signatureX,
+      signatureY,
+    );
   }
 };
 
@@ -656,8 +675,12 @@ const requestTsaTimestamp = async (hash: string): Promise<Buffer> => {
   try {
     const tsaUrl = process.env.TSA_URL;
     if (!tsaUrl) {
-      console.error('[signHandler] TSA_URL not configured - timestamp authority is required');
-      throw new Error('TSA_URL_NOT_CONFIGURED: TSA_URL environment variable is not set');
+      console.error(
+        '[signHandler] TSA_URL not configured - timestamp authority is required',
+      );
+      throw new Error(
+        'TSA_URL_NOT_CONFIGURED: TSA_URL environment variable is not set',
+      );
     }
 
     const timestampToken = await TsaService.requestTimestampToken(hash, tsaUrl);
@@ -911,6 +934,84 @@ export const signHandler = async (req: Request, res: Response) => {
     const signerName = signer.getSignerName();
     const signedAt = new Date();
 
+    // Parse optional signature coordinates from form fields (allow 0)
+    const getFieldValue = (obj: any, key: string): string | undefined => {
+      const v = obj?.[key];
+      if (Array.isArray(v)) return v[0];
+      if (typeof v === 'string' || typeof v === 'number') return String(v);
+      return undefined;
+    };
+
+    const sigXStr =
+      getFieldValue(fields, 'signatureX') ??
+      getFieldValue((req as any).body, 'signatureX');
+    const sigYStr =
+      getFieldValue(fields, 'signatureY') ??
+      getFieldValue((req as any).body, 'signatureY');
+
+    let signatureX =
+      typeof sigXStr !== 'undefined' && sigXStr !== null && sigXStr !== ''
+        ? Number(sigXStr)
+        : undefined;
+    let signatureY =
+      typeof sigYStr !== 'undefined' && sigYStr !== null && sigYStr !== ''
+        ? Number(sigYStr)
+        : undefined;
+
+    // If JWT includes coordinates (future-proof), prefer them when not provided by client
+    try {
+      const payload: any = (req as any).signPayload || {};
+      if (
+        (signatureX === undefined || Number.isNaN(signatureX)) &&
+        typeof payload.signatureX !== 'undefined'
+      ) {
+        signatureX = Number(payload.signatureX);
+      }
+      if (
+        (signatureY === undefined || Number.isNaN(signatureY)) &&
+        typeof payload.signatureY !== 'undefined'
+      ) {
+        signatureY = Number(payload.signatureY);
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    console.log(
+      `[signHandler] Received signature coordinates: X=${signatureX}, Y=${signatureY}`,
+    );
+    appendLog(
+      'info',
+      `Received signature coordinates: X=${signatureX}, Y=${signatureY}`,
+    );
+
+    // Enforce: for offence_sheet signing, coordinates must be provided by backend/frontend
+    try {
+      const payload: any = (req as any).signPayload || {};
+      if (payload.documentType === 'offence_sheet') {
+        if (
+          typeof signatureX === 'undefined' ||
+          typeof signatureY === 'undefined' ||
+          Number.isNaN(signatureX) ||
+          Number.isNaN(signatureY)
+        ) {
+          appendLog(
+            'error',
+            'Missing signature coordinates for offence_sheet signing',
+          );
+          signer.close();
+          return res
+            .status(400)
+            .json({
+              error:
+                'signatureX and signatureY are required for offence_sheet signing',
+            });
+        }
+      }
+    } catch (e) {
+      // ignore and continue
+    }
+
     // === Certificate serial binding check ===
     try {
       const expectedSerial =
@@ -949,7 +1050,13 @@ export const signHandler = async (req: Request, res: Response) => {
     // Modify PDF
     const pdfDoc = await loadPdfDocument(fileBuffer);
     setPdfMetadata(pdfDoc, signerName);
-    await addSignatureMetadataToPdf(pdfDoc, signerName, signedAt);
+    await addSignatureMetadataToPdf(
+      pdfDoc,
+      signerName,
+      signedAt,
+      signatureX,
+      signatureY,
+    );
 
     // Save and validate
     let signedPdfBytes = await savePdfToBuffer(pdfDoc);
@@ -1043,9 +1150,15 @@ export const signHandler = async (req: Request, res: Response) => {
       });
     }
 
-    if (typeof errorMsg === 'string' && errorMsg.includes('TSA_URL_NOT_CONFIGURED')) {
+    if (
+      typeof errorMsg === 'string' &&
+      errorMsg.includes('TSA_URL_NOT_CONFIGURED')
+    ) {
       // Dedicated error when TSA is not configured — this is a configuration issue
-      appendLog('error', 'TSA_URL not configured - cannot proceed with signing');
+      appendLog(
+        'error',
+        'TSA_URL not configured - cannot proceed with signing',
+      );
       return res.status(503).json({
         error:
           'Timestamp Authority not configured (TSA_URL missing). Cannot create legally-valid signatures.',
