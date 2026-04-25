@@ -1,11 +1,14 @@
 {
-  "name": "backend",
+  "name": "digital-signature-app",
   "version": "1.0.0",
   "description": "PDF Digital Signature with Hypersecu USB Token",
-  "main": "index.js",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",
+    "electron:dev": "electron .",
+    "pack": "electron-builder --dir --win",
+    "dist": "electron-builder --win",
     "installer:prepare": "powershell -ExecutionPolicy Bypass -File scripts/build-installer-payload.ps1",
     "installer:build": "powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1",
     "build:ts": "tsc -p tsconfig.build.json",
@@ -50,6 +53,35 @@
     "typescript": "^6.0.2",
     "webpack": "^5.106.1",
     "webpack-cli": "^7.0.2",
-    "webpack-obfuscator": "^3.6.1"
+    "webpack-obfuscator": "^3.6.1",
+    "electron": "^26.0.0",
+    "electron-builder": "^24.6.0"
+  },
+  "build": {
+    "appId": "com.example.digital-signature",
+    "productName": "Digital Signature App",
+    "directories": {
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "views/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis"]
+    },
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true
+    },
+    "msi": {
+      "perMachine": false
+    }
   }
 }

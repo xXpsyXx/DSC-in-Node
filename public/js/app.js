@@ -177,14 +177,29 @@ async function saveDriverPath() {
   const p = driverPathEl.value;
   if (!p) return showResponse('Driver path cannot be empty', 'error');
   try {
+    // If running inside packaged Electron, attempt to persist via IPC first
+    if (window.electronAPI && typeof window.electronAPI.saveDriverPath === 'function') {
+      try {
+        const ipcRes = await window.electronAPI.saveDriverPath(p);
+        if (ipcRes && ipcRes.success) {
+          console.info('Driver path persisted via Electron main process');
+        } else {
+          console.warn('Electron main failed to persist driver path', ipcRes);
+        }
+      } catch (e) {
+        console.warn('electronAPI.saveDriverPath error', e);
+      }
+    }
+
+    // Also call the backend endpoint to keep server-side state in sync
     const r = await fetch(`${window.apiBase}/admin/driver-path`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ driverPath: p, applyTo: 'both' }) });
-    const j = await r.json();
+    const j = await r.json().catch(() => null);
     if (r.ok) {
       showResponse('Saved', 'success');
       loadBackendLogs();
       loadStatus();
     } else {
-      showResponse(j.error || 'Save failed', 'error');
+      showResponse((j && j.error) || 'Save failed', 'error');
     }
   } catch (e) {
     console.error('saveDriverPath error', e);

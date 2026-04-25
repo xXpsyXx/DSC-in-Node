@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>DSC Helper</title>
+    <title>Digital Signature App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/css/styles.css" />
     <link rel="stylesheet" href="/css/service-dashboard.css" />
@@ -46,7 +46,7 @@
             <div class="settings-body">
               <label class="setting-label">PKCS#11 Driver Path</label>
               <div style="display:flex; gap:8px; align-items:center;">
-                <input id="driverPath" class="settings-input" type="text" placeholder="Driver path" />
+                <input id="driverPath" name="driverPath" class="settings-input" type="text" placeholder="Driver path" value="<%= typeof defaultDriverPath !== 'undefined' ? defaultDriverPath : '' %>" />
                 <input id="driverFileInput" type="file" style="display:none" />
               </div>
               <div style="display:flex; gap:8px; margin-top:8px;">

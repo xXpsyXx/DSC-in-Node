@@ -5,7 +5,8 @@ const { getStatusSnapshot, appendLog, getSanitizedLogs, clearLogs } = require('.
 const { SignerService } = require('../services/sign.service.js');
 
 const projectRoot = path.resolve(__dirname, '..', '..');
-const envFilePath = path.join(projectRoot, '.env');
+// If running under Electron packaged app, a writable user .env may be provided
+const envFilePath = process.env.USER_CONFIG_PATH || path.join(projectRoot, '.env');
 
 const readEnvFile = () => {
   try {
@@ -16,7 +17,15 @@ const readEnvFile = () => {
 };
 
 const writeEnvFile = (content) => {
-  fs.writeFileSync(envFilePath, content, { encoding: 'utf-8' });
+  try {
+    // Ensure directory exists for user config (when envFilePath is in userData)
+    const dir = path.dirname(envFilePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(envFilePath, content, { encoding: 'utf-8' });
+  } catch (e) {
+    console.error('[admin] Failed to write env file to', envFilePath, e && e.message);
+    throw e;
+  }
 };
 
 const setEnvVar = (key, value, escapeForWindows = false) => {
@@ -46,6 +55,9 @@ exports.getConfigHandler = async (_req, res) => {
       pkcs11SlotIndex: process.env.PKCS11_SLOT_INDEX || null,
       pkcs11CertLabel: process.env.PKCS11_CERT_LABEL || null,
       timestamp: new Date().toISOString(),
+      userEnvFilePath: envFilePath,
+      userEnvFileExists: fs.existsSync(envFilePath),
+      autoStartEnabled: (process.env.APP_AUTO_START === 'true') || false,
     };
     res.json({ success: true, data: cfg });
   } catch (error) {

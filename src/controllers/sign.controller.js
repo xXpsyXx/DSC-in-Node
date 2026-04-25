@@ -198,7 +198,7 @@ const drawDateText = (page, font, dateText, boxX, boxY, dateSize) => {
   page.drawText(dateText, { x: boxX + padding, y: boxY + padding + 1, size: dateSize, font, color: rgb(0.2, 0.2, 0.2) });
 };
 
-const addSignatureStampToPage = async (pdfDoc, page, signerName, signedAt) => {
+const addSignatureStampToPage = async (pdfDoc, page, signerName, signedAt, signatureX, signatureY) => {
   const headerLines = ['Signature valid', 'Digitally Signed by', `${signerName}`];
   const dateText = `Date: ${signedAt.toLocaleString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
   const stampFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -207,23 +207,37 @@ const addSignatureStampToPage = async (pdfDoc, page, signerName, signedAt) => {
   const lineHeight = 12;
   const padding = 8;
   const margin = 20;
+
   const maxHeaderWidth = Math.max(...headerLines.map((line) => stampFont.widthOfTextAtSize(line, fontSize)));
   const dateWidth = stampFont.widthOfTextAtSize(dateText, dateSize);
   const maxTextWidth = Math.max(maxHeaderWidth, dateWidth);
+
   const boxWidth = maxTextWidth + padding * 2;
   const boxHeight = headerLines.length * lineHeight + 8 + padding * 2;
   const { width } = page.getSize();
-  const boxX = width - boxWidth - margin;
-  const boxY = margin;
+
+  // Default placement: top-right-ish (calculated from page width and margin)
+  const defaultBoxX = width - boxWidth - margin;
+  const defaultBoxY = margin;
+
+  // If explicit coordinates provided (from request), use them — allow 0 values.
+  const boxX = typeof signatureX !== 'undefined' && signatureX !== null ? signatureX : defaultBoxX;
+  const boxY = typeof signatureY !== 'undefined' && signatureY !== null ? signatureY : defaultBoxY;
+
+  // Draw border
   drawDashedBorder(page, boxX, boxY, boxWidth, boxHeight);
+
+  // Embed checkmark
   await embedCheckmarkImage(pdfDoc, page, boxX, boxY, boxHeight);
+
+  // Draw text
   drawHeaderLines(page, stampFont, headerLines, boxX, boxY, boxHeight, fontSize);
   drawDateText(page, stampFont, dateText, boxX, boxY, dateSize);
 };
 
-const addSignatureMetadataToPdf = async (pdfDoc, signerName, signedAt) => {
+const addSignatureMetadataToPdf = async (pdfDoc, signerName, signedAt, signatureX, signatureY) => {
   const targetPage = getLastPdfPage(pdfDoc);
-  if (targetPage) await addSignatureStampToPage(pdfDoc, targetPage, signerName, signedAt);
+  if (targetPage) await addSignatureStampToPage(pdfDoc, targetPage, signerName, signedAt, signatureX, signatureY);
 };
 
 const savePdfToBuffer = async (pdfDoc) => {
@@ -390,6 +404,50 @@ exports.signHandler = async (req, res) => {
     const certWarning = extractCertificateWarning(certStatus);
     const signerName = signer.getSignerName();
     const signedAt = new Date();
+
+    // Parse optional signature coordinates from form fields (allow 0)
+    const getFieldValue = (obj, key) => {
+      const v = obj && obj[key];
+      if (Array.isArray(v)) return v[0];
+      if (typeof v === 'string' || typeof v === 'number') return String(v);
+      return undefined;
+    };
+
+    const sigXStr = getFieldValue(fields, 'signatureX') ?? (req.body ? req.body.signatureX : undefined);
+    const sigYStr = getFieldValue(fields, 'signatureY') ?? (req.body ? req.body.signatureY : undefined);
+
+    let signatureX = typeof sigXStr !== 'undefined' && sigXStr !== null && sigXStr !== '' ? Number(sigXStr) : undefined;
+    let signatureY = typeof sigYStr !== 'undefined' && sigYStr !== null && sigYStr !== '' ? Number(sigYStr) : undefined;
+
+    // If JWT includes coordinates (future-proof), prefer them when not provided by client
+    try {
+      const payload = req.signPayload || {};
+      if ((signatureX === undefined || Number.isNaN(signatureX)) && typeof payload.signatureX !== 'undefined') {
+        signatureX = Number(payload.signatureX);
+      }
+      if ((signatureY === undefined || Number.isNaN(signatureY)) && typeof payload.signatureY !== 'undefined') {
+        signatureY = Number(payload.signatureY);
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    console.log(`[signHandler] Received signature coordinates: X=${signatureX}, Y=${signatureY}`);
+    appendLog('info', `Received signature coordinates: X=${signatureX}, Y=${signatureY}`);
+
+    // Enforce: for offence_sheet signing, coordinates must be provided by backend/frontend
+    try {
+      const payload = req.signPayload || {};
+      if (payload.documentType === 'offence_sheet') {
+        if (typeof signatureX === 'undefined' || typeof signatureY === 'undefined' || Number.isNaN(signatureX) || Number.isNaN(signatureY)) {
+          appendLog('error', 'Missing signature coordinates for offence_sheet signing');
+          signer.close();
+          return res.status(400).json({ error: 'signatureX and signatureY are required for offence_sheet signing' });
+        }
+      }
+    } catch (e) {
+      // ignore and continue
+    }
     try {
       const expectedSerial = req.signPayload?.certSerial || req.signPayload?.cert_serial || req.signPayload?.expectedCertSerial;
       if (expectedSerial) {
@@ -407,7 +465,7 @@ exports.signHandler = async (req, res) => {
     }
     const pdfDoc = await loadPdfDocument(fileBuffer);
     setPdfMetadata(pdfDoc, signerName);
-    await addSignatureMetadataToPdf(pdfDoc, signerName, signedAt);
+    await addSignatureMetadataToPdf(pdfDoc, signerName, signedAt, signatureX, signatureY);
     let signedPdfBytes = await savePdfToBuffer(pdfDoc);
     validatePdfStructure(signedPdfBytes);
     console.log(`[signHandler] PDF saved: ${signedPdfBytes.length} bytes`);

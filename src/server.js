@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const dotenv = require('dotenv');
+const fs = require('fs');
+const os = require('os');
 
 const signRoutes = require('./routes/sign.route.js');
 const keysRoutes = require('./routes/keys.route.js');
@@ -12,7 +14,27 @@ const { appendLog } = require('./utils/status.store.js');
 const projectRoot = path.resolve(__dirname, '..');
 
 const loadEnvironmentVariables = () => {
-  dotenv.config({ path: path.join(projectRoot, '.env') });
+  // Prefer a user-configured .env (set by Electron) when present
+  const userEnvPath = process.env.USER_CONFIG_PATH;
+  const fallbackPath = path.join(projectRoot, '.env');
+  try {
+    if (userEnvPath && fs.existsSync(userEnvPath)) {
+      dotenv.config({ path: userEnvPath });
+      console.log(`[server] Loaded env from USER_CONFIG_PATH: ${userEnvPath}`);
+      return;
+    }
+    if (userEnvPath) {
+      console.log(`[server] USER_CONFIG_PATH set but file missing: ${userEnvPath}`);
+    }
+    if (fs.existsSync(fallbackPath)) {
+      dotenv.config({ path: fallbackPath });
+      console.log(`[server] Loaded env from project .env: ${fallbackPath}`);
+    } else {
+      console.log(`[server] No env file found at ${fallbackPath}`);
+    }
+  } catch (e) {
+    console.warn('[server] Failed to load env file:', e && e.message);
+  }
 };
 
 const configureCorsMiddleware = (app) => {
@@ -47,8 +69,10 @@ const registerHealthCheckEndpoint = (app) => {
   });
 };
 
+const FIXED_PORT = 45763;
 const getServerPort = () => {
-  return Number.parseInt(process.env.PORT || '5000', 10);
+  // Use a fixed port required by the Electron app
+  return FIXED_PORT;
 };
 
 const configureUnhandledRejectionHandler = () => {
@@ -95,7 +119,17 @@ const startServer = () => {
 
   // Render SPA root
   app.get('/', (req, res) => {
-    res.render('index', { apiBase: '/api' });
+    const getDefaultDriverPath = () => {
+      const direct = process.env.PKCS11_LIBRARY_PATH && process.env.PKCS11_LIBRARY_PATH.trim();
+      if (direct) return direct;
+      const platform = os.platform();
+      if (platform === 'win32') return process.env.PKCS11_LIBRARY_PATH_WINDOWS || '';
+      if (platform === 'linux') return process.env.PKCS11_LIBRARY_PATH_LINUX || '';
+      if (platform === 'darwin') return process.env.PKCS11_LIBRARY_PATH_DARWIN || '';
+      return '';
+    };
+
+    res.render('index', { apiBase: '/api', defaultDriverPath: getDefaultDriverPath() });
   });
 
   // Global error logger
@@ -112,7 +146,7 @@ const startServer = () => {
 
   registerHealthCheckEndpoint(app);
 
-  const server = app.listen(port, () => {
+  const server = app.listen(port, '127.0.0.1', () => {
     console.log(`DSC Helper running on http://localhost:${port}`);
   });
 
