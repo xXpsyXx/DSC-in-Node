@@ -33,15 +33,15 @@ const hideConfirmModal = () => { if (confirmModal) confirmModal.style.display = 
 
 let responseTimer = null;
 function showResponse(message, type = 'info', autoCloseMs = 5000) {
-  responseContent.textContent = message;
-  responsePopup.className = `response-popup ${type}`;
-  responsePopup.style.display = 'block';
-  if (responseTimer) clearTimeout(responseTimer);
-  if (autoCloseMs && autoCloseMs > 0) responseTimer = setTimeout(() => (responsePopup.style.display = 'none'), autoCloseMs);
+  // UI alerts disabled globally. Keep a console trace for debugging.
+  if (typeof message !== 'undefined' && message !== null) {
+    console.info('[response disabled]', type, message);
+  }
+  // Intentionally do not update DOM to show popups.
 }
 function closeResponse() {
   if (responseTimer) clearTimeout(responseTimer);
-  responsePopup.style.display = 'none';
+  if (responsePopup) responsePopup.style.display = 'none';
 }
 responseClose?.addEventListener('click', closeResponse);
 

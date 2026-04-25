@@ -325,6 +325,8 @@
 
 /* Response popup */
 .response-popup {
+  /* Hidden: alerts removed site-wide */
+  display: none !important;
   position: fixed;
   right: 18px;
   top: 18px;
