@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { getStatusSnapshot, appendLog, getSanitizedLogs } = require('../utils/status.store.js');
+const { getStatusSnapshot, appendLog, getSanitizedLogs, clearLogs } = require('../utils/status.store.js');
 const { SignerService } = require('../services/sign.service.js');
 
 const projectRoot = path.resolve(__dirname, '..', '..');
@@ -79,6 +79,7 @@ exports.getStatusHandler = async (_req, res) => {
 exports.getLogsHandler = async (_req, res) => {
   try {
     const logs = getSanitizedLogs();
+    // Ensure logs are returned newest-first; include rawTimestamp for client sorting
     return res.json({ success: true, data: logs });
   } catch (e) {
     console.error('[admin] getLogsHandler error:', e);
@@ -142,5 +143,15 @@ exports.getLogsFileHandler = async (_req, res) => {
   } catch (e) {
     console.error('[admin] getLogsFileHandler error:', e);
     return res.status(500).json({ success: false, error: 'Failed to read logs file' });
+  }
+};
+
+exports.clearLogsHandler = async (_req, res) => {
+  try {
+    clearLogs();
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('[admin] clearLogsHandler error:', e);
+    return res.status(500).json({ success: false, error: 'Failed to clear logs' });
   }
 };

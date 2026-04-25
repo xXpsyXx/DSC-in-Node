@@ -40,13 +40,39 @@ const svgToPngBuffer = async () => {
 
 exports.getCertDetailsHandler = async (req, res) => {
   try {
+    console.log('[getCertDetailsHandler] incoming request headers:', req.headers || {});
+    console.log('[getCertDetailsHandler] incoming content-type:', req.headers && (req.headers['content-type'] || req.headers['Content-Type']));
+    if (req.body) {
+      try {
+        console.log('[getCertDetailsHandler] req.body present:', typeof req.body === 'object' ? JSON.stringify(req.body) : String(req.body));
+      } catch (e) {
+        console.warn('[getCertDetailsHandler] Could not stringify req.body', e);
+      }
+    }
     let pin;
     if (req.body && req.body.pin) {
       pin = req.body.pin;
     } else {
       const form = new IncomingForm();
-      const [fields] = await form.parse(req);
-      pin = fields.pin?.[0];
+      try {
+        const parsed = await form.parse(req);
+        // Support promise-return style: parse may return [fields, files] or an object
+        let fields = null;
+        if (Array.isArray(parsed)) {
+          fields = parsed[0];
+        } else if (parsed && typeof parsed === 'object') {
+          // Some versions return { fields, files }
+          fields = parsed.fields || parsed[0] || parsed;
+        }
+        if (fields) {
+          // fields.pin may be an array (formidable) or a direct value
+          pin = Array.isArray(fields.pin) ? fields.pin[0] : fields.pin;
+        }
+      } catch (formErr) {
+        console.error('[getCertDetailsHandler] formidable.parse error:', formErr && formErr.stack ? formErr.stack : formErr);
+        appendLog('error', `form parse error: ${(formErr && formErr.message) || String(formErr)}`);
+        return res.status(400).json({ error: 'Invalid form data or parse error' });
+      }
     }
 
     if (!pin) return res.status(400).json({ error: 'pin is required' });

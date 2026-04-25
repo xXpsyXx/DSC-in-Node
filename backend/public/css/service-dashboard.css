@@ -169,6 +169,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 1.25rem;
 }
 .title-left {
   display: flex;
@@ -294,6 +295,25 @@
 .refresh-svg {
   display: block;
 }
+
+/* Clear Logs button positioned to the left of the refresh icon */
+.clear-topright {
+  position: absolute;
+  top: 12px;
+  right: 62px; /* space between Clear Logs and the refresh button */
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #cfe8ff;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 59;
+}
+.clear-topright:hover { background: rgba(255, 255, 255, 0.04); }
 
 .logs-body .no-logs {
   color: #9fb8d9;

@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { getConfigHandler, getStatusHandler, updateDriverPathHandler, appendLogHandler, getLogsFileHandler, getLogsHandler } = require('../controllers/admin.controller.js');
+const { getConfigHandler, getStatusHandler, updateDriverPathHandler, appendLogHandler, getLogsFileHandler, getLogsHandler, clearLogsHandler } = require('../controllers/admin.controller.js');
 
 const createAdminRouter = () => {
   const router = Router();
@@ -20,6 +20,9 @@ const createAdminRouter = () => {
   router.get('/logs/file', getLogsFileHandler);
   // GET /admin/logs -> return JSON logs
   router.get('/logs', (_req, res) => getLogsHandler(_req, res));
+
+  // POST /admin/logs/clear -> clear persisted logs
+  router.post('/logs/clear', (_req, res) => clearLogsHandler(_req, res));
 
   return router;
 };

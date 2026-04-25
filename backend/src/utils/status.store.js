@@ -58,11 +58,13 @@ const loadLogsFromFile = () => {
     const fileLogs = Array.isArray(parsed?.logs) ? parsed.logs : [];
     logs = fileLogs
       .map((l) => ({
-        timestamp: l?.timestamp || new Date().toISOString(),
+        // Keep both a raw ISO timestamp and a formatted display timestamp
+        rawTimestamp: l?.rawTimestamp || l?.timestamp || new Date().toISOString(),
+        timestamp: formatTimestampIST(l?.rawTimestamp || l?.timestamp || new Date().toISOString()),
         type: l?.type || 'info',
         text: sanitizeLogText(l?.text || ''),
       }))
-      .map((l) => ({ ...l, timestamp: formatTimestampIST(l.timestamp) }));
+      ;
     persistLogsToFile();
   } catch (e) {
     console.error('[status.store] Failed to load logs from file:', e);
@@ -72,8 +74,9 @@ const loadLogsFromFile = () => {
 const persistLogsToFile = () => {
   try {
     if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
-    const sanitized = logs.map((l) => ({ timestamp: l.timestamp, type: l.type, text: l.text }));
+    const sanitized = logs.map((l) => ({ rawTimestamp: l.rawTimestamp || new Date().toISOString(), timestamp: l.timestamp, type: l.type, text: l.text }));
     fs.writeFileSync(logsFile, JSON.stringify({ updated: formatTimestampIST(new Date()), logs: sanitized }, null, 2), { encoding: 'utf-8' });
+    try { console.debug(`[status.store] persisted ${sanitized.length} logs to ${logsFile}`); } catch (e) {}
   } catch (e) {
     console.error('[status.store] Failed to persist logs:', e);
   }
@@ -82,10 +85,16 @@ const persistLogsToFile = () => {
 loadLogsFromFile();
 
 const appendLog = (type, text) => {
+  const nowIso = new Date().toISOString();
   const sanitizedText = sanitizeLogText(text || '');
-  logs.unshift({ timestamp: formatTimestampIST(new Date()), type, text: sanitizedText });
-  if (logs.length > MAX_LOGS) logs = logs.slice(0, MAX_LOGS);
-  persistLogsToFile();
+  try {
+    logs.unshift({ rawTimestamp: nowIso, timestamp: formatTimestampIST(nowIso), type, text: sanitizedText });
+    if (logs.length > MAX_LOGS) logs = logs.slice(0, MAX_LOGS);
+    persistLogsToFile();
+    try { console.debug(`[status.store] appendLog: ${nowIso} ${type} ${sanitizedText}`); } catch (e) {}
+  } catch (e) {
+    console.error('[status.store] appendLog failed:', e);
+  }
 };
 
 const setLastAction = (text) => {
@@ -94,9 +103,13 @@ const setLastAction = (text) => {
 };
 
 const getLogs = () => logs.slice(0, MAX_LOGS);
-const getSanitizedLogs = () => getLogs().map((l) => ({ timestamp: l.timestamp, type: l.type, text: l.text }));
+const getSanitizedLogs = () => getLogs().map((l) => ({ rawTimestamp: l.rawTimestamp, timestamp: l.timestamp, type: l.type, text: l.text }));
 const getLastAction = () => lastAction;
-const clearLogs = () => { logs = []; };
+const clearLogs = () => { 
+  logs = []; 
+  try { persistLogsToFile(); } catch (e) { console.error('[status.store] Failed to persist cleared logs:', e); }
+  try { console.debug('[status.store] cleared logs'); } catch (e) {}
+};
 
 const getStatusSnapshot = () => {
   return {

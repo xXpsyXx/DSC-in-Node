@@ -14,9 +14,22 @@ const responseClose = $('#responseClose');
 
 const pinModal = $('#pinModal');
 const pinInput = $('#pinInput');
+const confirmModal = $('#confirmModal');
+const confirmModalSubtitle = $('#confirmModalSubtitle');
+const confirmClearBtn = $('#confirmClear');
+const cancelClearBtn = $('#cancelClear');
 
 const showModal = () => { pinModal.style.display = 'flex'; pinInput.value = ''; pinInput.focus(); };
 const hideModal = () => { pinModal.style.display = 'none'; };
+
+const showConfirmModal = (subtitle) => {
+  if (!confirmModal) return;
+  confirmModal.style.display = 'flex';
+  if (confirmModalSubtitle) confirmModalSubtitle.textContent = subtitle || 'Are you sure?';
+  try { confirmClearBtn?.focus(); } catch (e) {}
+};
+
+const hideConfirmModal = () => { if (confirmModal) confirmModal.style.display = 'none'; };
 
 let responseTimer = null;
 function showResponse(message, type = 'info', autoCloseMs = 5000) {
@@ -30,7 +43,30 @@ function closeResponse() {
   if (responseTimer) clearTimeout(responseTimer);
   responsePopup.style.display = 'none';
 }
-responseClose.addEventListener('click', closeResponse);
+responseClose?.addEventListener('click', closeResponse);
+
+// Parse timestamps robustly: accept ISO or the server's formatted IST string
+function parseTimestampToMs(s) {
+  if (!s) return 0;
+  const v = String(s);
+  const parsed = Date.parse(v);
+  if (!isNaN(parsed)) return parsed;
+  // try server format: DD-MM-YYYY HH:MM:SS am/pm IST
+  const m = v.match(/(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\s*(am|pm)/i);
+  if (m) {
+    const dd = m[1], mm = m[2], yyyy = m[3], hh = m[4], minu = m[5], sec = m[6], ampm = m[7].toLowerCase();
+    let hour = parseInt(hh, 10);
+    const minute = parseInt(minu, 10);
+    const second = parseInt(sec, 10);
+    if (ampm === 'pm' && hour !== 12) hour += 12;
+    if (ampm === 'am' && hour === 12) hour = 0;
+    // build ISO with IST offset so Date.parse can handle timezone correctly
+    const iso = `${yyyy}-${mm}-${dd}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}+05:30`;
+    const p = Date.parse(iso);
+    if (!isNaN(p)) return p;
+  }
+  return 0;
+}
 
 async function formatToIST(dateStr) {
   try {
@@ -93,7 +129,8 @@ async function loadStatus() {
 
 async function loadBackendLogs() {
   try {
-    const r = await fetch(`${window.apiBase}/admin/logs`);
+    // Add cache-bust to avoid cached responses and force fresh read from server
+    const r = await fetch(`${window.apiBase}/admin/logs?_=${Date.now()}`, { cache: 'no-store' });
     if (!r.ok) return;
     const j = await r.json();
     const arr = j?.data || j || [];
@@ -101,11 +138,19 @@ async function loadBackendLogs() {
       logsEl.innerHTML = '<div class="no-logs">No logs to display</div>';
       return;
     }
-    logsEl.innerHTML = arr
-      .map(
-        (l) =>
-          `<div class="log-row"><span class="log-dot ${l.type}"></span><span class="log-ts">${l.timestamp || ''}</span><span class="log-text">${l.text || ''}</span></div>`,
-      )
+    // Sort by timestamp descending (newest first). Parse timestamps robustly.
+    const sorted = arr.slice().sort((a, b) => {
+      const ta = parseTimestampToMs(a.rawTimestamp || a.timestamp || '');
+      const tb = parseTimestampToMs(b.rawTimestamp || b.timestamp || '');
+      return tb - ta;
+    });
+    logsEl.innerHTML = sorted
+      .map((l) => {
+        const ts = l.timestamp || l.rawTimestamp || '';
+        const text = l.text || '';
+        const type = l.type || 'info';
+        return `<div class="log-row"><span class="log-dot ${type}"></span><span class="log-ts">${ts}</span><span class="log-text">${text}</span></div>`;
+      })
       .join('\n');
   } catch (e) {
     console.warn('loadBackendLogs error', e);
@@ -149,19 +194,34 @@ async function saveDriverPath() {
 
 async function autoDetectToken() {
   try {
-    const r = await fetch(`${window.apiBase}/sign/auto-detect-token`);
-    if (!r.ok) throw new Error('Auto-detect failed');
-    const j = await r.json();
+    // Call the auto-detect endpoint mounted under `/api`
+    const r = await fetch(`${window.apiBase}/auto-detect-token`);
+    // Even if the server returns 4xx/5xx, attempt to parse body for message
+    const j = await r.json().catch(() => null);
+    if (!r.ok) {
+      // If server returned an error, surface server message if any
+      const msg = j && (j.message || j.error) ? (j.message || j.error) : 'Auto-detect failed';
+      showResponse(msg, 'info');
+      // Reload logs so any appended server log entries appear
+      await loadBackendLogs();
+      throw new Error('Auto-detect failed');
+    }
     if (j && j.detected) {
       driverPathEl.value = j.driverPath || '';
       showResponse(`Driver detected: ${j.driverName}`, 'success');
     } else {
       showResponse(j.message || 'No device detected', 'info');
     }
-    loadBackendLogs();
+    // Small delay to ensure backend has persisted the new log entry
+    await new Promise((res) => setTimeout(res, 120));
+    await loadBackendLogs();
+    return j;
   } catch (e) {
     console.error('autoDetectToken error', e);
     showResponse('Auto-detect failed', 'error');
+    // ensure logs are refreshed even on error
+    try { await loadBackendLogs(); } catch (_) {}
+    throw e;
   }
 }
 
@@ -171,7 +231,7 @@ async function onConfirmPinUnlock() {
   try {
     const form = new FormData();
     form.append('pin', pin);
-    const r = await fetch(`${window.apiBase}/sign/get-cert-details`, { method: 'POST', body: form });
+    const r = await fetch(`${window.apiBase}/get-cert-details`, { method: 'POST', body: form });
     const j = await r.json();
     if (!r.ok || (j && (j.error || j.message))) {
       const msg = (j && (j.error || j.message)) || 'Failed to unlock';
@@ -196,21 +256,47 @@ async function onConfirmPinUnlock() {
   }
 }
 
-// Wire up UI events
-$('#unlockBtn').addEventListener('click', showModal);
-$('#cancelPin').addEventListener('click', hideModal);
-$('#confirmPin').addEventListener('click', onConfirmPinUnlock);
-$('#saveDriver').addEventListener('click', saveDriverPath);
-$('#autoDetect').addEventListener('click', autoDetectToken);
-$('#browseDriver').addEventListener('click', () => $('#driverFileInput').click());
-$('#driverFileInput').addEventListener('change', (e) => { const input = e.target; if (input && input.files && input.files[0]) driverPathEl.value = input.files[0].name || ''; });
-$('#refreshBtn').addEventListener('click', () => { loadStatus(); loadBackendLogs(); refreshHealth(); });
+// Wire up UI events (safe: only attach when element exists)
+$('#unlockBtn')?.addEventListener('click', showModal);
+$('#cancelPin')?.addEventListener('click', hideModal);
+$('#confirmPin')?.addEventListener('click', onConfirmPinUnlock);
+$('#saveDriver')?.addEventListener('click', saveDriverPath);
+$('#autoDetect')?.addEventListener('click', autoDetectToken);
+$('#clearLogsBtn')?.addEventListener('click', () => showConfirmModal('Clear all logs?'));
+cancelClearBtn?.addEventListener('click', hideConfirmModal);
+confirmClearBtn?.addEventListener('click', async () => {
+  try {
+    const r = await fetch(`${window.apiBase}/admin/logs/clear`, { method: 'POST' });
+    const j = await r.json().catch(() => null);
+    if (r.ok) {
+      hideConfirmModal();
+      showResponse('Logs cleared', 'success');
+      await loadBackendLogs();
+    } else {
+      showResponse(j?.error || 'Failed to clear logs', 'error');
+    }
+  } catch (e) {
+    console.error('clear logs error', e);
+    showResponse('Failed to clear logs', 'error');
+  }
+});
+$('#browseDriver')?.addEventListener('click', () => $('#driverFileInput')?.click());
+$('#driverFileInput')?.addEventListener('change', (e) => { const input = e.target; if (input && input.files && input.files[0]) driverPathEl.value = input.files[0].name || ''; });
+$('#refreshBtn')?.addEventListener('click', async () => {
+  try {
+    // Attempt auto-detect first so any new log entries get written
+    await autoDetectToken();
+  } catch (e) {
+    console.warn('autoDetectToken failed during refresh', e);
+  }
+  await loadStatus();
+  await loadBackendLogs();
+});
 
 // Initial load and polling
 (async function init() {
   await loadConfig();
   await loadStatus();
   await loadBackendLogs();
-  refreshHealth();
-  setInterval(() => { loadStatus(); loadBackendLogs(); }, 3000);
+  setInterval(() => { loadStatus(); loadBackendLogs(); }, 10000);
 })();

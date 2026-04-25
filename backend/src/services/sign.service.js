@@ -194,6 +194,22 @@ class SignerService {
     return this.pkcs11;
   }
 
+  requireSlot() {
+    if (!this.pkcs11Slot) {
+      // Try to refresh slot list if library is present
+      if (this.pkcs11) {
+        try {
+          const slots = this.pkcs11.C_GetSlotList(true) || [];
+          if (slots.length) this.pkcs11Slot = this.selectSlot(slots);
+        } catch (e) {
+          // ignore - will throw below
+        }
+      }
+    }
+    if (!this.pkcs11Slot) throw new Error('PKCS#11 slot is not selected');
+    return this.pkcs11Slot;
+  }
+
   findSingleObject(session, template) {
     const pkcs11 = this.requirePkcs11();
     pkcs11.C_FindObjectsInit(session, template);
