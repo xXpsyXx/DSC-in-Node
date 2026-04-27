@@ -7,15 +7,30 @@ const getBackendUrl = () => {
 
 async function getPublicKey() {
   const backendUrl = getBackendUrl();
-  const response = await axios.get(
-    `${backendUrl}/digital-signature/public-key`,
-    {
+  try {
+    const response = await axios.get(`${backendUrl}/digital-signature/public-key`, {
       timeout: 5000,
-    },
-  );
-  console.log('[keys] Public key fetched from backend');
-  // Support ApiResponse wrapper: prefer response.data.data.publicKey
-  return response?.data?.data?.publicKey || response?.data?.publicKey || null;
+    });
+    console.log('[keys] Public key fetched from backend');
+    return response?.data?.data?.publicKey || response?.data?.publicKey || null;
+  } catch (error) {
+    // If the hostname is 'localhost' and DNS resolves to IPv6 (::1) which is refused
+    // because the backend listens on IPv4 only (127.0.0.1), retry using IPv4.
+    if (backendUrl.includes('localhost')) {
+      const ipv4Url = backendUrl.replace('localhost', '127.0.0.1');
+      try {
+        const response2 = await axios.get(`${ipv4Url}/digital-signature/public-key`, {
+          timeout: 5000,
+        });
+        console.log('[keys] Public key fetched from backend (ipv4 fallback)');
+        return response2?.data?.data?.publicKey || response2?.data?.publicKey || null;
+      } catch (err2) {
+        console.error('[keys] IPv4 fallback failed:', err2.message);
+        throw err2;
+      }
+    }
+    throw error;
+  }
 }
 
 const createKeysRouter = () => {

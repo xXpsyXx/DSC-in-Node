@@ -18,6 +18,7 @@ const confirmModal = $('#confirmModal');
 const confirmModalSubtitle = $('#confirmModalSubtitle');
 const confirmClearBtn = $('#confirmClear');
 const cancelClearBtn = $('#cancelClear');
+let certificateUnlocked = false;
 
 const showModal = () => { pinModal.style.display = 'flex'; pinInput.value = ''; pinInput.focus(); };
 const hideModal = () => { pinModal.style.display = 'none'; };
@@ -70,19 +71,26 @@ function parseTimestampToMs(s) {
 
 async function formatToIST(dateStr) {
   try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return null;
+    let d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+      const ms = parseTimestampToMs(dateStr);
+      if (!ms) return null;
+      d = new Date(ms);
+    }
     const opts = {
-      year: 'numeric',
+      year: '2-digit',
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
       hour12: true,
       timeZone: 'Asia/Kolkata',
     };
-    return new Intl.DateTimeFormat('en-GB', opts).format(d).replace(',', '');
+    // Return shorter certificate display: DD-MM-YY HH:MM am/pm (no seconds, no IST suffix)
+    let formatted = new Intl.DateTimeFormat('en-GB', opts).format(d).replace(/\//g, '-').replace(',', '').trim();
+    // Normalize AM/PM to lowercase
+    formatted = formatted.replace(/AM/g, 'am').replace(/PM/g, 'pm');
+    return formatted;
   } catch (e) {
     return null;
   }
@@ -107,9 +115,9 @@ async function loadStatus() {
     if (!r.ok) throw new Error('status fetch failed');
     const j = await r.json();
     const d = j?.data || j || {};
-    certNameEl.textContent = (d.tokenInfo && d.tokenInfo.label) || '-';
-    serialEl.textContent = (d.tokenInfo && d.tokenInfo.serialNumber) || '-';
-    validityEl.textContent = d.tokenInfo ? 'present' : '-';
+    // Token connection status: update indicators but do not overwrite
+    // certificate fields once the user has unlocked them. Clear the
+    // displayed certificate details only when the token is disconnected.
     if (d.tokenDetected) {
       statusLabelEl.textContent = 'Connected';
       statusLabelEl.className = 'panel-status-label green';
@@ -118,6 +126,10 @@ async function loadStatus() {
       statusLabelEl.textContent = 'Disconnected';
       statusLabelEl.className = 'panel-status-label red';
       statusIndicatorEl.className = 'panel-indicator-inline red';
+      certNameEl.textContent = '-';
+      serialEl.textContent = '-';
+      validityEl.textContent = '-';
+      certificateUnlocked = false;
     }
   } catch (e) {
     console.warn('loadStatus error', e);
@@ -257,10 +269,12 @@ async function onConfirmPinUnlock() {
     const data = j?.data || j || j;
     const owner = data.ownerName || data.label || data.subject || data.signerName || '-';
     const serial = data.certSerialNumber || data.serialNumber || data.serial || '-';
-    const expiry = data.certExpiryDate || data.expiryDate || data.expiry || '-';
+    const expiryRaw = data.certExpiryDate || data.expiryDate || data.expiry || null;
+    const formattedExpiry = expiryRaw ? (await formatToIST(expiryRaw) || expiryRaw) : '-';
     certNameEl.textContent = owner || '-';
     serialEl.textContent = serial || '-';
-    validityEl.textContent = expiry || '-';
+    validityEl.textContent = formattedExpiry || '-';
+    certificateUnlocked = true;
     showResponse('Certificate unlocked', 'success');
     hideModal();
     loadBackendLogs();
