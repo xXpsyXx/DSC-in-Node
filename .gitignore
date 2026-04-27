@@ -58,3 +58,4 @@ temp/
 # Node native modules
 build/Release/
 *.node
+electron/default.env

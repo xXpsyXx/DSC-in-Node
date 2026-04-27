@@ -129,6 +129,7 @@ async function loadStatus() {
       certNameEl.textContent = '-';
       serialEl.textContent = '-';
       validityEl.textContent = '-';
+      validityEl.classList.remove('expired');
       certificateUnlocked = false;
     }
   } catch (e) {
@@ -271,9 +272,16 @@ async function onConfirmPinUnlock() {
     const serial = data.certSerialNumber || data.serialNumber || data.serial || '-';
     const expiryRaw = data.certExpiryDate || data.expiryDate || data.expiry || null;
     const formattedExpiry = expiryRaw ? (await formatToIST(expiryRaw) || expiryRaw) : '-';
+    const expiryMs = expiryRaw ? parseTimestampToMs(expiryRaw) : 0;
     certNameEl.textContent = owner || '-';
     serialEl.textContent = serial || '-';
-    validityEl.textContent = formattedExpiry || '-';
+    if (expiryMs && expiryMs < Date.now()) {
+      validityEl.textContent = 'Expired';
+      validityEl.classList.add('expired');
+    } else {
+      validityEl.textContent = formattedExpiry || '-';
+      validityEl.classList.remove('expired');
+    }
     certificateUnlocked = true;
     showResponse('Certificate unlocked', 'success');
     hideModal();
