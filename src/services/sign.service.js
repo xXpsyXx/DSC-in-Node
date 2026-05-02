@@ -44,9 +44,10 @@ class SignerService {
     const expiryDate = cert.validity.notAfter;
     const now = new Date();
     const daysRemaining = Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysRemaining < 0) {
-      return { status: 'expired', daysRemaining, expiryDate, message: `Certificate has expired (expired ${Math.abs(daysRemaining)} days ago on ${expiryDate.toDateString()})` };
-    } else if (daysRemaining < 30) {
+    // if (daysRemaining < 0) {
+    //   return { status: 'expired', daysRemaining, expiryDate, message: `Certificate has expired (expired ${Math.abs(daysRemaining)} days ago on ${expiryDate.toDateString()})` };
+    // } else
+     if (daysRemaining < 30) {
       return { status: 'warning', daysRemaining, expiryDate, message: `Certificate expires in ${daysRemaining} days (${expiryDate.toDateString()})` };
     }
     return { status: 'valid', daysRemaining, expiryDate, message: `Certificate is valid for ${daysRemaining} more days` };
